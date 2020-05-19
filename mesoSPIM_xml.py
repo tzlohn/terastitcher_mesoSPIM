@@ -71,8 +71,7 @@ with open(file_list[0],'r') as a_metafile:
 
     pattern = re.compile(r"[\[]z_planes[\]] (\d+)")
     output = pattern.findall(im_info)
-    #slice_no = int(output[0])
-    slice_no = 116
+    slice_no = int(output[0])
     
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
