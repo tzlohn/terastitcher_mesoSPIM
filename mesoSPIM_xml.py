@@ -3,6 +3,12 @@ import tkinter as tk
 from tkinter import filedialog
 
 # magic number zone #
+'''
+reference refering is like transpose. ref1 indicates the V in terastitcher
+ref2 indicates H, ref3 indicates D. 1,2,3 is the 3 dimension indicators in your images.
+The follwing assigment tells the code to map the coordinates of your system to terastitcher
+the minus sign indicates that the tile will be aligned/stitched in the reverse order of the index
+''' 
 ref1 = 1
 ref2 = 2
 ref3 = 3
@@ -48,6 +54,16 @@ y_pos_all.sort(reverse= True)
 x_pos_all.sort(reverse= True)
 
 total_row = len(y_pos_all)
+
+# Terasticher requires users to put the file in a order of the aligning/stitching direction
+new_file_index = []
+for a_file_name in file_list:
+    y_pos = float(pattern_y.findall(a_file_name)[0])
+    x_pos = float(pattern_x.findall(a_file_name)[0])
+    index = y_pos_all.index(y_pos) + x_pos_all.index(x_pos)*total_row
+    new_file_index.append(index)
+sorted_file_list = [file_list for _, file_list in sorted(zip(new_file_index, file_list))]
+
 if total_row > 1:
     offset_V = y_pos_all[0]-y_pos_all[1]
 else:
@@ -84,7 +100,7 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    <mechanical_displacements V=\"%.2f\" H=\"%.2f\" />\n"%(offset_V,offset_H))
     xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(total_row,total_column,slice_no))
     xml_file.write("    <STACKS>\n")
-    for file_name in file_list:
+    for file_name in sorted_file_list:
         with open(file_name,'r') as this_im:
             im_info = this_im.read()
             xml_file.write("        <Stack N_BLOCKS=\"1\"")
@@ -95,7 +111,8 @@ with open(xml_name,'w') as xml_file:
             
             pattern = re.compile(r"[\[]y_pos[\]] (-)?(\d+)(\.)?(\d+)?")
             y_position = int(get_value(pattern,im_info))
-            y_index = y_pos_all.index(y_position)    
+            y_index = y_pos_all.index(y_position)
+
             
             pattern = re.compile(r"[\[]x_pos[\]] (-)?(\d+)(\.)?(\d+)?")
             x_position = int(get_value(pattern,im_info))
@@ -103,8 +120,8 @@ with open(xml_name,'w') as xml_file:
 
             xml_file.write(" ROW=\"%d\""%(y_index))
             xml_file.write(" COL=\"%d\""%(x_index))   
-            xml_file.write(" ABS_H=\"%.1f\""%(x_position))
-            xml_file.write(" ABS_V=\"%.1f\""%(y_position))
+            xml_file.write(" ABS_H=\"%.1f\""%(round(x_position/dim_H)))
+            xml_file.write(" ABS_V=\"%.1f\""%(round(y_position/dim_V)))
             
             xml_file.write(" ABS_D=\"0\"")
             xml_file.write(" STITCHABLE=\"no\"")
