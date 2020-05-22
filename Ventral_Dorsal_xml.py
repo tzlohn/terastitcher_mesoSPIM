@@ -2,6 +2,7 @@ import re, sys, os, glob
 import tkinter as tk
 from tkinter import filedialog, simpledialog
 import tifffile as TFF
+import numpy as np
 
 # magic number zone #
 '''
@@ -43,32 +44,50 @@ image_files = [ventral_file[0], dorsal_file[0]]
 
 with TFF.TiffFile(ventral_file[0]) as tif:
     ventral_image = tif.asarray()
-    ventral_image = ventral_image[100:1900,:,:]
     ventral_image = ventral_image.transpose(2,1,0)
     print(ventral_image.shape)
-#os.rename(ventral_file[0],"ventral.tif")
-TFF.imwrite(ventral_file[0],ventral_image)
+    tif.close()
+os.rename(ventral_file[0],"ventral.tif")
+
 
 with TFF.TiffFile(dorsal_file[0]) as tif:
     dorsal_image = tif.asarray()
     dorsal_image = dorsal_image.transpose(2,1,0)
-#os.rename(dorsal_file[0],"dorsal.tif")
+    tif.close()
+os.rename(dorsal_file[0],"dorsal.tif")
+
+for n in [1,2]:
+    if ventral_image.shape[n] > dorsal_image.shape[n]:
+        diff = ventral_image.shape[n]-dorsal_image.shape[n]            
+        filling_shape = dorsal_image.shape
+        filling_shape[n] = diff 
+        filling_image = np.zeros(filling_shape,dtype = 'uint16')
+        dorsal_image = np.concatenate(dorsal_image, filling_image, axis = n)
+    else:
+        diff = dorsal_image.shape[n]-ventral_image.shape[n]    
+        filling_shape = ventral_image.shape
+        filling_shape[n] = diff 
+        filling_image = np.zeros(filling_shape,dtype = 'uint16')
+        ventral_image = np.concatenate(filling_image,ventral_image, axis = n)
+
+TFF.imwrite(ventral_file[0],ventral_image)
 TFF.imwrite(dorsal_file[0],dorsal_image)
 
 dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
 dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
+z_overlap = simpledialog.askfloat(prompt = "no. of overlapped layers between dorsal and ventral sides:", title = "")
 
 xml_name = folderpath + "//" + "terastitcher" + ".xml"
 
 offset_V = 0
-offset_H = ventral_image.shape[2]*dim_H
+offset_H = (ventral_image.shape[2]-z_overlap)*dim_H
 
 total_row = 1
 total_column = 2
 slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
 print(slice_no)
-shift_no = [1, ventral_image.shape[2],dorsal_image.shape[2]]
+shift_no = [1, ventral_image.shape[2]-z_overlap)
 print(shift_no)
 
 with open(xml_name,'w') as xml_file:
