@@ -1,6 +1,7 @@
 import re, sys, os, glob
 import tkinter as tk
 from tkinter import filedialog, simpledialog
+import tifffile as TFF
 
 # magic number zone #
 '''
@@ -32,27 +33,44 @@ root = tk.Tk()
 root.withdraw()
 
 folderpath = filedialog.askdirectory(title = "select the folder containing 3D tiffs for both sides")
-ventral_file = filedialog.FileDialog(master = None, title = "select the ventral image")
-dorsal_file = filedialog.FileDialog(master = None, title = "select the dorsal image")
-image_files = [ventral_file, dorsal_file]
+os.chdir(folderpath)
+ventral_file = filedialog.askopenfilename(title = "select the ventral image")
+dorsal_file = filedialog.askopenfilename(title = "select the dorsal image")
+pattern = re.compile(r'\S+\/(\S+.tif)')
+ventral_file = pattern.findall(ventral_file)
+dorsal_file = pattern.findall(dorsal_file)
+image_files = [ventral_file[0], dorsal_file[0]]
+
+with TFF.TiffFile(ventral_file[0]) as tif:
+    ventral_image = tif.asarray()
+    ventral_image = ventral_image[100:1900,:,:]
+    ventral_image = ventral_image.transpose(2,1,0)
+    print(ventral_image.shape)
+#os.rename(ventral_file[0],"ventral.tif")
+TFF.imwrite(ventral_file[0],ventral_image)
+
+with TFF.TiffFile(dorsal_file[0]) as tif:
+    dorsal_image = tif.asarray()
+    dorsal_image = dorsal_image.transpose(2,1,0)
+#os.rename(dorsal_file[0],"dorsal.tif")
+TFF.imwrite(dorsal_file[0],dorsal_image)
+
+dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
+dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
+dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
 
 xml_name = folderpath + "//" + "terastitcher" + ".xml"
 
 offset_V = 0
-offset_H = 0
+offset_H = ventral_image.shape[2]*dim_H
 
 total_row = 1
-total_column = 1
+total_column = 2
+slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
+print(slice_no)
+shift_no = [1, ventral_image.shape[2],dorsal_image.shape[2]]
+print(shift_no)
 
-slice_no = []
-slice_no[0] = 0
-slice_no[1] = simpledialog.askinteger(prompt = "number of slices on the ventral side:", title = "")
-slice_no[2] = simpledialog.askinteger(prompt = "number of slices on the dorsal side:", title = "")
-
-dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
-dim_H = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
-dim_D = simpledialog.askfloat(prompt = "the step size in z:", title = "")
-    
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
     xml_file.write("<!DOCTYPE TeraStitcher SYSTEM \"TeraStitcher.DTD\">\n")
@@ -62,25 +80,25 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    <voxel_dims V=\"%.2f\" H=\"%.2f\" D=\"%.2f\" />\n"%(dim_V,dim_H,dim_D))
     xml_file.write("    <origin V=\"%.3f\" H=\"%.3f\" D=\"%.3f\" />\n"%(ori_V,ori_H,ori_D))
     xml_file.write("    <mechanical_displacements V=\"%.2f\" H=\"%.2f\" />\n"%(offset_V,offset_H))
-    xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(total_row,total_column,max(slice_no))
+    xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(total_row,total_column,max(slice_no)))
     xml_file.write("    <STACKS>\n")
     
     for n in range(len(image_files)):
-        xml_file.write("        <Stack N_BLOCKS=\"%d\""%(n))
-        xml_file.write(" BLOCK_SIZES=\"%.2f\""%(slice_no[n+1]*dim_D))
-        xml_file.write(" BLOCKS_ABS_D=\"%d\""%(slice_no[n]*dim_D))
+        xml_file.write("        <Stack N_BLOCKS=\"%d\""%(1))
+        xml_file.write(" BLOCK_SIZES=\"%.2f\""%(slice_no[n]*dim_D))
+        xml_file.write(" BLOCKS_ABS_D=\"%d\""%(0))
         xml_file.write(" N_CHANS=\"1\"")
         xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
             
         xml_file.write(" ROW=\"%d\""%(0))
-        xml_file.write(" COL=\"%d\""%(0))   
-        xml_file.write(" ABS_H=\"%.1f\""%(1))
+        xml_file.write(" COL=\"%d\""%(n))   
+        xml_file.write(" ABS_H=\"%.1f\""%(shift_no[n]))
         xml_file.write(" ABS_V=\"%.1f\""%(1))
             
         xml_file.write(" ABS_D=\"0\"")
-        xml_file.write(" STITCHABLE=\"no\"")
+        xml_file.write(" STITCHABLE=\"yes\"")
         xml_file.write(" DIR_NAME=\"\"")
-        xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n+1]))
+        xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n]))
         xml_file.write(" IMG_REGEX=\"%s\">\n"%(image_files[n]))
             
         xml_file.write("            <NORTH_displacements/>\n")
