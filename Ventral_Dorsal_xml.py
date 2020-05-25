@@ -2,6 +2,7 @@ import re, sys, os, glob
 import tkinter as tk
 from tkinter import filedialog, simpledialog
 import tifffile as TFF
+import numpy as np
 
 # magic number zone #
 '''
@@ -54,16 +55,27 @@ with TFF.TiffFile(dorsal_file[0]) as tif:
     tif.close()
 os.rename(dorsal_file[0],"dorsal.tif")
 
-if ventral_image.shape[0] > dorsal_image.shape[0]:
-else:
-    
+for n in [1,2]:
+    if ventral_image.shape[n] > dorsal_image.shape[n]:
+        diff = ventral_image.shape[n]-dorsal_image.shape[n]            
+        filling_shape = dorsal_image.shape
+        filling_shape[n] = diff 
+        filling_image = np.zeros(filling_shape,dtype = 'uint16')
+        dorsal_image = np.concatenate(dorsal_image, filling_image, axis = n)
+    else:
+        diff = dorsal_image.shape[n]-ventral_image.shape[n]    
+        filling_shape = ventral_image.shape
+        filling_shape[n] = diff 
+        filling_image = np.zeros(filling_shape,dtype = 'uint16')
+        ventral_image = np.concatenate(filling_image,ventral_image, axis = n)
+
 TFF.imwrite(ventral_file[0],ventral_image)
 TFF.imwrite(dorsal_file[0],dorsal_image)
 
 dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
 dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
-z_overlap = simpledialog.askfloat(prompt = "The overlap layers in z:", title = "")
+z_overlap = simpledialog.askinteger(prompt = "no. of overlapped layers between dorsal and ventral sides:", title = "")
 
 xml_name = folderpath + "//" + "terastitcher" + ".xml"
 
@@ -74,7 +86,7 @@ total_row = 1
 total_column = 2
 slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
 print(slice_no)
-shift_no = [1, ventral_image.shape[2]-z_overlap]
+shift_no = [1, ventral_image.shape[2]-z_overlap)
 print(shift_no)
 
 with open(xml_name,'w') as xml_file:
