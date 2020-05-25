@@ -43,35 +43,55 @@ dorsal_file = pattern.findall(dorsal_file)
 image_files = [ventral_file[0], dorsal_file[0]]
 
 with TFF.TiffFile(ventral_file[0]) as tif:
+    print("step 1/6: loading the ventral image")
     ventral_image = tif.asarray()
     ventral_image = ventral_image.transpose(2,1,0)
     print(ventral_image.shape)
     tif.close()
-os.rename(ventral_file[0],"ventral.tif")
+#os.rename(ventral_file[0],"ventral.tif")
 
 with TFF.TiffFile(dorsal_file[0]) as tif:
+    print("step 2/6: loading the dorsal image")
     dorsal_image = tif.asarray()
     dorsal_image = dorsal_image.transpose(2,1,0)
     tif.close()
-os.rename(dorsal_file[0],"dorsal.tif")
+#os.rename(dorsal_file[0],"dorsal.tif")
+'''
 
 for n in [1,2]:
+    if n is 1:
+        print("step 3/6: aligning y axis")
+    elif n is 2:
+        print("step 4/6: aligning z axis")
     if ventral_image.shape[n] > dorsal_image.shape[n]:
         diff = ventral_image.shape[n]-dorsal_image.shape[n]            
-        filling_shape = dorsal_image.shape
+        filling_shape = list(dorsal_image.shape)
         filling_shape[n] = diff 
         filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        dorsal_image = np.concatenate(dorsal_image, filling_image, axis = n)
+        dorsal_image = np.concatenate([dorsal_image, filling_image], axis = n)
     else:
         diff = dorsal_image.shape[n]-ventral_image.shape[n]    
-        filling_shape = ventral_image.shape
+        filling_shape = list(ventral_image.shape)
         filling_shape[n] = diff 
         filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        ventral_image = np.concatenate(filling_image,ventral_image, axis = n)
+        ventral_image = np.concatenate([filling_image,ventral_image], axis = n)
+'''
 
-TFF.imwrite(ventral_file[0],ventral_image)
-TFF.imwrite(dorsal_file[0],dorsal_image)
+print("step 5/6: save the aligned images for Terastitcher")
+os.mkdir("ventral_images")
+os.chdir("ventral_images")
+for n in range(0,ventral_image.shape[0]):
+    filename = "ventral_" + str(n)
+    TFF.imwrite(filename,ventral_image[n,:,:],compress = 5)
+os.chdir(folderpath)
+os.mkdir("dorsal_images")
+os.chdir("dorsal_images")
+for n in range(0,dorsal_image.shape[0]):
+    filename = "dorsal_" + str(n)
+    TFF.imwrite(filename,dorsal_image[n,:,:],compress = 5)
+os.chdir(folderpath)
 
+print("step 6/6: generating the xml for Terastitcher")
 dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
 dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
@@ -86,7 +106,7 @@ total_row = 1
 total_column = 2
 slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
 print(slice_no)
-shift_no = [1, ventral_image.shape[2]-z_overlap)
+shift_no = [1, ventral_image.shape[2]-z_overlap]
 print(shift_no)
 
 with open(xml_name,'w') as xml_file:
