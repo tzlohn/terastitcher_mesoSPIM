@@ -43,32 +43,38 @@ image_files = [ventral_file[0], dorsal_file[0]]
 
 with TFF.TiffFile(ventral_file[0]) as tif:
     ventral_image = tif.asarray()
-    ventral_image = ventral_image[100:1900,:,:]
     ventral_image = ventral_image.transpose(2,1,0)
     print(ventral_image.shape)
-#os.rename(ventral_file[0],"ventral.tif")
-TFF.imwrite(ventral_file[0],ventral_image)
+    tif.close()
+os.rename(ventral_file[0],"ventral.tif")
 
 with TFF.TiffFile(dorsal_file[0]) as tif:
     dorsal_image = tif.asarray()
     dorsal_image = dorsal_image.transpose(2,1,0)
-#os.rename(dorsal_file[0],"dorsal.tif")
+    tif.close()
+os.rename(dorsal_file[0],"dorsal.tif")
+
+if ventral_image.shape[0] > dorsal_image.shape[0]:
+else:
+    
+TFF.imwrite(ventral_file[0],ventral_image)
 TFF.imwrite(dorsal_file[0],dorsal_image)
 
 dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
 dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
+z_overlap = simpledialog.askfloat(prompt = "The overlap layers in z:", title = "")
 
 xml_name = folderpath + "//" + "terastitcher" + ".xml"
 
 offset_V = 0
-offset_H = ventral_image.shape[2]*dim_H
+offset_H = (ventral_image.shape[2]-z_overlap)*dim_H
 
 total_row = 1
 total_column = 2
 slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
 print(slice_no)
-shift_no = [1, ventral_image.shape[2],dorsal_image.shape[2]]
+shift_no = [1, ventral_image.shape[2]-z_overlap]
 print(shift_no)
 
 with open(xml_name,'w') as xml_file:
