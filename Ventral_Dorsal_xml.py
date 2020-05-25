@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import filedialog, simpledialog
 import tifffile as TFF
 import numpy as np
+import Tif3D2Tif2D as tifConvert
 
 # magic number zone #
 '''
@@ -42,11 +43,11 @@ ventral_file = pattern.findall(ventral_file)
 dorsal_file = pattern.findall(dorsal_file)
 image_files = [ventral_file[0], dorsal_file[0]]
 
+
 with TFF.TiffFile(ventral_file[0]) as tif:
     print("step 1/6: loading the ventral image")
     ventral_image = tif.asarray()
     ventral_image = ventral_image.transpose(2,1,0)
-    print(ventral_image.shape)
     tif.close()
 #os.rename(ventral_file[0],"ventral.tif")
 
@@ -56,6 +57,9 @@ with TFF.TiffFile(dorsal_file[0]) as tif:
     dorsal_image = dorsal_image.transpose(2,1,0)
     tif.close()
 #os.rename(dorsal_file[0],"dorsal.tif")
+'''
+ventral_image = np.zeros([215,1321,220], dtype= "uint16")
+dorsal_image = np.zeros([208,1456,180], dtype = "uint16")
 '''
 
 for n in [1,2]:
@@ -75,20 +79,10 @@ for n in [1,2]:
         filling_shape[n] = diff 
         filling_image = np.zeros(filling_shape,dtype = 'uint16')
         ventral_image = np.concatenate([filling_image,ventral_image], axis = n)
-'''
 
 print("step 5/6: save the aligned images for Terastitcher")
-os.mkdir("ventral_images")
-os.chdir("ventral_images")
-for n in range(0,ventral_image.shape[0]):
-    filename = "ventral_" + str(n)
-    TFF.imwrite(filename,ventral_image[n,:,:],compress = 5)
-os.chdir(folderpath)
-os.mkdir("dorsal_images")
-os.chdir("dorsal_images")
-for n in range(0,dorsal_image.shape[0]):
-    filename = "dorsal_" + str(n)
-    TFF.imwrite(filename,dorsal_image[n,:,:],compress = 5)
+tifConvert.c3DTo2D(ventral_file[0],"ventral_images")
+tifConvert.c3DTo2D(dorsal_file[0],"dorsal_images")
 os.chdir(folderpath)
 
 print("step 6/6: generating the xml for Terastitcher")
@@ -109,10 +103,13 @@ print(slice_no)
 shift_no = [1, ventral_image.shape[2]-z_overlap]
 print(shift_no)
 
+foldername = ['ventral_images','dorsal_images']
+filename_re = ["ventral_\d+.tif","dorsal_\d+.tif"]
+
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
     xml_file.write("<!DOCTYPE TeraStitcher SYSTEM \"TeraStitcher.DTD\">\n")
-    xml_file.write("<TeraStitcher volume_format=\"TiledXY|3Dseries\" input_plugin=\"tiff3D\">\n")
+    xml_file.write("<TeraStitcher volume_format=\"TiledXY|2Dseries\" input_plugin=\"tiff2D\">\n")
     xml_file.write("    <stacks_dir value=\"%s\" />\n"%folderpath)
     xml_file.write("    <ref_sys ref1=\"%d\" ref2=\"%d\" ref3=\"%d\" />\n"%(ref1,ref2,ref3))
     xml_file.write("    <voxel_dims V=\"%.2f\" H=\"%.2f\" D=\"%.2f\" />\n"%(dim_V,dim_H,dim_D))
@@ -122,9 +119,6 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    <STACKS>\n")
     
     for n in range(len(image_files)):
-        xml_file.write("        <Stack N_BLOCKS=\"%d\""%(1))
-        xml_file.write(" BLOCK_SIZES=\"%.2f\""%(slice_no[n]*dim_D))
-        xml_file.write(" BLOCKS_ABS_D=\"%d\""%(0))
         xml_file.write(" N_CHANS=\"1\"")
         xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
             
@@ -135,9 +129,9 @@ with open(xml_name,'w') as xml_file:
             
         xml_file.write(" ABS_D=\"0\"")
         xml_file.write(" STITCHABLE=\"yes\"")
-        xml_file.write(" DIR_NAME=\"\"")
+        xml_file.write(" DIR_NAME=\"%s\""%(foldername[n]))
         xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n]))
-        xml_file.write(" IMG_REGEX=\"%s\">\n"%(image_files[n]))
+        xml_file.write(" IMG_REGEX=\"%s\">\n"%(filename_re[n]))
             
         xml_file.write("            <NORTH_displacements/>\n")
         xml_file.write("            <EAST_displacements/>\n")
