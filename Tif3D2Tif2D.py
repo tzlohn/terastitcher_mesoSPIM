@@ -1,17 +1,14 @@
 import numpy as np 
 import tifffile as tff 
-import os,shutil
+import os
 
-def c3DTo2D(filename, dest_folder):
+def c3DTo2D(images, dest_folder):
     currentfolder = os.getcwd()
     os.mkdir(dest_folder)
-    shutil.move(filename,currentfolder+"/"+dest_folder+"/"+ filename)
-    os.chdir(dest_folder)
-    tif  = tff.TiffFile(filename)
-    layerno = len(tif.pages)
+    os.chdir(dest_folder)    
+    layerno = images.shape[0]
     for n in range(0,layerno):
         name = "image_" + str(n) + ".tif"
-        img = tff.imread(filename,key = n)
-        tff.imwrite(name,img)
+        tff.imwrite(name,images[n,:,:])
     os.chdir(currentfolder)
 

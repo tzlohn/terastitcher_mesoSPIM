@@ -49,18 +49,12 @@ with TFF.TiffFile(ventral_file[0]) as tif:
     ventral_image = tif.asarray()
     ventral_image = ventral_image.transpose(2,1,0)
     tif.close()
-#os.rename(ventral_file[0],"ventral.tif")
 
 with TFF.TiffFile(dorsal_file[0]) as tif:
     print("step 2/6: loading the dorsal image")
     dorsal_image = tif.asarray()
     dorsal_image = dorsal_image.transpose(2,1,0)
     tif.close()
-#os.rename(dorsal_file[0],"dorsal.tif")
-'''
-ventral_image = np.zeros([215,1321,220], dtype= "uint16")
-dorsal_image = np.zeros([208,1456,180], dtype = "uint16")
-'''
 
 for n in [1,2]:
     if n is 1:
@@ -81,8 +75,8 @@ for n in [1,2]:
         ventral_image = np.concatenate([filling_image,ventral_image], axis = n)
 
 print("step 5/6: save the aligned images for Terastitcher")
-tifConvert.c3DTo2D(ventral_file[0],"ventral_images")
-tifConvert.c3DTo2D(dorsal_file[0],"dorsal_images")
+tifConvert.c3DTo2D(ventral_image,"ventral_images")
+tifConvert.c3DTo2D(dorsal_image,"dorsal_images")
 os.chdir(folderpath)
 
 print("step 6/6: generating the xml for Terastitcher")
@@ -104,7 +98,7 @@ shift_no = [1, ventral_image.shape[2]-z_overlap]
 print(shift_no)
 
 foldername = ['ventral_images','dorsal_images']
-filename_re = ["ventral_\d+.tif","dorsal_\d+.tif"]
+
 
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
@@ -119,7 +113,7 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    <STACKS>\n")
     
     for n in range(len(image_files)):
-        xml_file.write(" N_CHANS=\"1\"")
+        xml_file.write("        <Stack N_CHANS=\"1\"")
         xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
             
         xml_file.write(" ROW=\"%d\""%(0))
@@ -131,7 +125,7 @@ with open(xml_name,'w') as xml_file:
         xml_file.write(" STITCHABLE=\"yes\"")
         xml_file.write(" DIR_NAME=\"%s\""%(foldername[n]))
         xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n]))
-        xml_file.write(" IMG_REGEX=\"%s\">\n"%(filename_re[n]))
+        xml_file.write(" IMG_REGEX=\"%s\">\n"%("image_\d+.tif"))
             
         xml_file.write("            <NORTH_displacements/>\n")
         xml_file.write("            <EAST_displacements/>\n")
