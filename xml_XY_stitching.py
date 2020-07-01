@@ -18,6 +18,7 @@ ori_H = 0
 ori_D = 0
 
 bit = 16
+
 ######################
 
 def get_value(expression,text):
@@ -37,6 +38,7 @@ os.chdir(folderpath)
 xml_name = folderpath + "\\" + "terastitcher" + ".xml"
 
 file_list = glob.glob('*tif_meta.txt')
+#file_list = glob.glob('*_meta.txt_10.txt')
 pattern_y = re.compile(r"X-?\d+_Y(-?\d+)")
 pattern_x = re.compile(r"X(-?\d+)_Y-?\d+")
 
@@ -54,13 +56,15 @@ y_pos_all.sort(reverse= True)
 x_pos_all.sort(reverse= True)
 
 total_row = len(y_pos_all)
+total_column = len(x_pos_all)
 
 # Terasticher requires users to put the file in a order of the aligning/stitching direction
 new_file_index = []
 for a_file_name in file_list:
     y_pos = float(pattern_y.findall(a_file_name)[0])
     x_pos = float(pattern_x.findall(a_file_name)[0])
-    index = y_pos_all.index(y_pos) + x_pos_all.index(x_pos)*total_row
+    #index = y_pos_all.index(y_pos) + x_pos_all.index(x_pos)*total_row
+    index = x_pos_all.index(x_pos) + y_pos_all.index(y_pos)*total_column
     new_file_index.append(index)
 sorted_file_list = [file_list for _, file_list in sorted(zip(new_file_index, file_list))]
 
@@ -69,12 +73,10 @@ if total_row > 1:
 else:
     offset_V = 0
 
-total_column = len(x_pos_all)
 if total_column > 1:
     offset_H = x_pos_all[0]-x_pos_all[1]
 else:
     offset_H = 0
-
 
 with open(file_list[0],'r') as a_metafile:
     im_info = a_metafile.read()
@@ -88,6 +90,8 @@ with open(file_list[0],'r') as a_metafile:
     pattern = re.compile(r"[\[]z_planes[\]] (\d+)")
     output = pattern.findall(im_info)
     slice_no = int(output[0])
+
+#slice_no = 19    
     
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
@@ -110,12 +114,12 @@ with open(xml_name,'w') as xml_file:
             xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
             
             pattern = re.compile(r"[\[]y_pos[\]] (-)?(\d+)(\.)?(\d+)?")
-            y_position = int(get_value(pattern,im_info))
+            y_position = int(round(get_value(pattern,im_info)))
             y_index = y_pos_all.index(y_position)
 
             
             pattern = re.compile(r"[\[]x_pos[\]] (-)?(\d+)(\.)?(\d+)?")
-            x_position = int(get_value(pattern,im_info))
+            x_position = int(round(get_value(pattern,im_info)))
             x_index = x_pos_all.index(x_position)
 
             xml_file.write(" ROW=\"%d\""%(y_index))
@@ -124,12 +128,14 @@ with open(xml_name,'w') as xml_file:
             xml_file.write(" ABS_V=\"%.1f\""%(round(y_position/dim_V)))
             
             xml_file.write(" ABS_D=\"0\"")
-            xml_file.write(" STITCHABLE=\"no\"")
+            xml_file.write(" STITCHABLE=\"yes\"")
             xml_file.write(" DIR_NAME=\"\"")
             xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no))
             
+            
             pattern = re.compile(r"(.*)_meta.txt")
             image_name = pattern.findall(file_name)[0]
+            #image_name = image_name + "_10.tif"            
             print(image_name)
             xml_file.write(" IMG_REGEX=\"%s\">\n"%(image_name))
             
