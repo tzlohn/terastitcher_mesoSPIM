@@ -2,8 +2,10 @@ import re, sys, os, glob
 import tkinter as tk
 from tkinter import filedialog, simpledialog
 import tifffile as TFF
+from skimage import io
 import numpy as np
-import Tif3D2Tif2D as tifConvert
+import time
+import utility.Tif3D2Tif2D as tifConvert
 
 # magic number zone #
 '''
@@ -43,23 +45,34 @@ ventral_file = pattern.findall(ventral_file)
 dorsal_file = pattern.findall(dorsal_file)
 image_files = [ventral_file[0], dorsal_file[0]]
 
-
+t_start = time.time()
+'''
 with TFF.TiffFile(ventral_file[0]) as tif:
     print("step 1/6: loading the ventral image")
-    ventral_image = tif.asarray()
+    ventral_image = tif.memmap()
     ventral_image = ventral_image.transpose(2,1,0)
     tif.close()
+'''
+print("step 1/6: loading the ventral image")
+ventral_image = TFF.memmap(ventral_file[0])
+t_end = time.time()
+print("%d"%(t_end-t_start))
 
-with TFF.TiffFile(dorsal_file[0]) as tif:
+'''
+with TFF.TiffFile(dorsal_file[0]) as tif_2:
     print("step 2/6: loading the dorsal image")
-    dorsal_image = tif.asarray()
+    dorsal_image = tif_2.asarray()
     dorsal_image = dorsal_image.transpose(2,1,0)
-    tif.close()
+'''
+print("step 2/6: loading the dorsal image")
+dorsal_image = TFF.memmap(dorsal_file[0])
+dorsal_image = dorsal_image.flip(axis = (0,2))
+#tif.close()
 
-for n in [1,2]:
+for n in [1,0]:
     if n is 1:
         print("step 3/6: aligning y axis")
-    elif n is 2:
+    elif n is 0:
         print("step 4/6: aligning z axis")
     if ventral_image.shape[n] > dorsal_image.shape[n]:
         diff = ventral_image.shape[n]-dorsal_image.shape[n]            
