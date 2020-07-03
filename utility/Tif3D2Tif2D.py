@@ -18,6 +18,6 @@ def c3DTo2D(images, dest_folder):
     layerno = images.shape[0]
     for n in range(0,layerno):
         name = "image_" + str(n) + ".tif"
-        tff.imwrite(name,images[n,:,:])
+        tff.imwrite(name,images[:,:,n])
     os.chdir(currentfolder)
 
