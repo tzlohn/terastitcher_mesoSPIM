@@ -3,4 +3,4 @@ terastitcher --displcompute --projin="xml_import.xml"
 terastitcher --displproj --projin="xml_displcomp.xml"
 terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7
 terastitcher --placetiles --projin="xml_displthres.xml"
-terastitcher --merge --projin="xml_merging.xml" --volout="ventral_647" --volout_plugin="TiledXY|3Dseries" --imout_format=tif --imout_depth="16"
+terastitcher --merge --projin="xml_merging.xml" --volout="ventral_647" --volout_plugin="TiledXY|3Dseries" --imout_format=tif --imout_depth="16" --libtiff_uncompress
