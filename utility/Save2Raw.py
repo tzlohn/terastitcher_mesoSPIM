@@ -13,62 +13,35 @@ def segmented_transpose(n,filename,LoadedPagesNo,new_shape,isdorsal):
     #new_shape is a transposed shape, the order is axis 2 = z
     with TFF.TiffFile(filename) as tif:
         ori_z_layers = len(tif.pages)
-    
-    if isdorsal:
-        z_start = ori_z_layers-1
-        z_end = 0
-        LoadedPagesNo = -LoadedPagesNo
-        load_order = -1
-    else:
-        z_start = 0
-        z_end = ori_z_layers
-        load_order = 1
-    
+
     ori_n = n
     diff = new_shape[2] - ori_z_layers
     if diff > 0:
-        # check whether all the layers needed to load are simply zero filling matrix
+        # check whether all the layers going to be loaded are all zero filling matrix
         # if yes, skip the process
-        if diff - (np.ceil(n/LoadedPagesNo)*LoadedPagesNo - z_start) > LoadedPagesNo:
-            print("test")
+        if diff - (np.ceil(ori_n/LoadedPagesNo)*LoadedPagesNo) > LoadedPagesNo:
+            return
         else:    
             filling_shape_z = (diff, tif.pages[0].shape[0],tif.pages[0].shape[1])
-            if not isdorsal:
-                # when new shape has z layers more than the image, the first several layers should
-                # not be loaded from the original image. In this situation, any n smaller than
-                # diff should not be loaded. so n-diff will make some n smaller than 0 in ventral 
-                # cases. When n-diff<0, images should not be loaded, instead, 0 should be created
-                # and filled.                
-                n = n - diff
+            # when new shape has z layers more than the image, the first several layers should
+            # not be loaded from the original image. In this situation, any n smaller than
+            # diff should not be loaded. so n-diff will make some n smaller than 0 in ventral 
+            # cases. When n-diff<0, images should not be loaded, instead, 0 should be created
+            # and filled.                
+            n = n - diff
     
-    if n + LoadedPagesNo < ori_z_layers or n + LoadedPagesNo > 0:
-        print("n+LoadedPagesNo:%d"%(n + LoadedPagesNo))
+    if n + LoadedPagesNo < ori_z_layers :
         # when this if statement is satisfied, images can be loaded fully without worrying out of index 
-        if n < 0 or n > ori_z_layers:
+        if n < 0:
             filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
-            an_image = TFF.imread(filename, key = range(0,n+LoadedPagesNo-(diff%LoadedPagesNo),load_order))
+            an_image = TFF.imread(filename, key = range(0,LoadedPagesNo+n))
             an_image = np.concatenate([filling_image,an_image], axis = 0)
+            print("%d:%d"%(n,an_image.shape[0]))
         else:
-            an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo,load_order))
-        """        
-        elif n < 0 and diff > LoadedPagesNo:
-            remain_diff = diff - np.ceil(ori_n/LoadedPagesNo)*LoadedPagesNo
-            if  remain_diff >= LoadedPagesNo:
-                filling_shape = (LoadedPagesNo, tif.pages[0].shape[0],tif.pages[0].shape[1])
-                an_image = np.zeros(filling_shape,dtype = 'uint16')
-            else:
-                filling_shape = (remain_diff, tif.pages[0].shape[0],tif.pages[0].shape[1])
-                filling_image = np.zeros(filling_shape,dtype = 'uint16')
-                an_image = TFF.imread(filename, key = range(n,n+LoadedPageNo-remain_diff))
-                an_image = np.concatenate([filling_image,an_image], axis = 0)
-        """           
-    elif n + LoadedPagesNo > ori_z_layers or n+ LoadedPagesNo < 0:
-        print(print("step_1:%d"%n))
-        an_image = TFF.imread(filename, key = range(n,z_end,load_order))
-        if isdorsal and diff > 0:
-            filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
-            an_image = TFF.imread(filename, key = range(n+LoadedPagesNo-(diff%LoadedPagesNo),0,load_order))
-            an_image = np.concatenate([an_image,filling_image], axis = 0)
+            an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
+
+    else:
+        an_image = TFF.imread(filename, key = range(n,ori_z_layers))
 
     if isdorsal:
         an_image = np.flip(an_image,axis = 2)
@@ -91,12 +64,13 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
         loading_range = range(n , n+x_layer_no)
     else:
         loading_range = range(n , x_size-1)
-    #p = 0
+
     img = []
     for tempname in temptifs_name:  
         tmp = TFF.imread(tempname, key = loading_range)
+        print("%s:%d\n"%(tmpname,tmp.shape[2]))
         img.append(tmp)
-        #p = p+1
+
     img = np.concatenate(img, axis = 2)
     #print("%d,%d"%(p,img.shape[2]))
     if isdorsal:
@@ -108,7 +82,6 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
         str_m = "0"*digit_diff + str_m
         img_name = "image_" + str_m + ".tif"    
         TFF.imsave(img_name, img[m-n], bigtiff = True)
-
 
 def Save2Raw(filename,new_shape,isdorsal):
 #def save_as_raw(filename, new_shape,isdorsal):
