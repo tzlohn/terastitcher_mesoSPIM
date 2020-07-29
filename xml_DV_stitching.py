@@ -1,11 +1,8 @@
-import re, sys, os, glob
+import re, sys, os, glob, time
 import tkinter as tk
 from tkinter import filedialog, simpledialog
 import tifffile as TFF
-from skimage import io
 import numpy as np
-import time
-import utility.Tif3D2Tif2D as tifConvert
 
 # magic number zone #
 '''
@@ -36,63 +33,9 @@ def get_value(expression,text):
 root = tk.Tk()
 root.withdraw()
 
-folderpath = filedialog.askdirectory(title = "select the folder containing 3D tiffs for both sides")
-os.chdir(folderpath)
-ventral_file = filedialog.askopenfilename(title = "select the ventral image")
-dorsal_file = filedialog.askopenfilename(title = "select the dorsal image")
-pattern = re.compile(r'\S+\/(\S+.tif)')
-ventral_file = pattern.findall(ventral_file)
-dorsal_file = pattern.findall(dorsal_file)
-image_files = [ventral_file[0], dorsal_file[0]]
-
-t_start = time.time()
-'''
-with TFF.TiffFile(ventral_file[0]) as tif:
-    print("step 1/6: loading the ventral image")
-    ventral_image = tif.memmap()
-    ventral_image = ventral_image.transpose(2,1,0)
-    tif.close()
-'''
-print("step 1/6: loading the ventral image")
-ventral_image = TFF.memmap(ventral_file[0])
-t_end = time.time()
-print("%d"%(t_end-t_start))
-
-'''
-with TFF.TiffFile(dorsal_file[0]) as tif_2:
-    print("step 2/6: loading the dorsal image")
-    dorsal_image = tif_2.asarray()
-    dorsal_image = dorsal_image.transpose(2,1,0)
-'''
-print("step 2/6: loading the dorsal image")
-dorsal_image = TFF.memmap(dorsal_file[0])
-dorsal_image = dorsal_image.flip(axis = (0,2))
-#tif.close()
-
-for n in [1,0]:
-    if n is 1:
-        print("step 3/6: aligning y axis")
-    elif n is 0:
-        print("step 4/6: aligning z axis")
-    if ventral_image.shape[n] > dorsal_image.shape[n]:
-        diff = ventral_image.shape[n]-dorsal_image.shape[n]            
-        filling_shape = list(dorsal_image.shape)
-        filling_shape[n] = diff 
-        filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        dorsal_image = np.concatenate([dorsal_image, filling_image], axis = n)
-    else:
-        diff = dorsal_image.shape[n]-ventral_image.shape[n]    
-        filling_shape = list(ventral_image.shape)
-        filling_shape[n] = diff 
-        filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        ventral_image = np.concatenate([filling_image,ventral_image], axis = n)
-
-print("step 5/6: save the aligned images for Terastitcher")
-tifConvert.c3DTo2D(ventral_image,"ventral_images")
-tifConvert.c3DTo2D(dorsal_image,"dorsal_images")
+folderpath = filedialog.askdirectory(title = "select the folder containing folders for images from both sides")
 os.chdir(folderpath)
 
-print("step 6/6: generating the xml for Terastitcher")
 dim_V = simpledialog.askfloat(prompt = "the pixel size in y:", title = "")
 dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
@@ -101,16 +44,26 @@ z_overlap = simpledialog.askinteger(prompt = "no. of overlapped layers between d
 xml_name = folderpath + "//" + "terastitcher" + ".xml"
 
 offset_V = 0
-offset_H = (ventral_image.shape[2]-z_overlap)*dim_H
+for folder in ["ventral_image","dorsal_image"]:
+    os.chdir(folder)
+    tif_name = glob.glob("*.tif")
+    if folder  == "ventral_image":
+        ventral_image = TFF.imread(tif_name[0])
+        slice_no_ventral = len(tif_name)
+    elif folder == "dorsal_image":
+        dorsal_image = TFF.imread(tif_name[0])
+        slice_no_dorsal = len(tif_name)
+    os.chdir(folderpath)
+offset_H = (ventral_image.shape[1]-z_overlap)*dim_H
 
 total_row = 1
 total_column = 2
-slice_no = [ventral_image.shape[0],dorsal_image.shape[0]]
+slice_no = [slice_no_ventral,slice_no_dorsal]
 print(slice_no)
-shift_no = [1, ventral_image.shape[2]-z_overlap]
+shift_no = [1, ventral_image.shape[1]-z_overlap]
 print(shift_no)
 
-foldername = ['ventral_images','dorsal_images']
+foldername = ['ventral_image','dorsal_image']
 
 
 with open(xml_name,'w') as xml_file:
@@ -125,7 +78,7 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(total_row,total_column,max(slice_no)))
     xml_file.write("    <STACKS>\n")
     
-    for n in range(len(image_files)):
+    for n in range(len(foldername)):
         xml_file.write("        <Stack N_CHANS=\"1\"")
         xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
             
