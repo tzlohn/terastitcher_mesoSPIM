@@ -33,12 +33,24 @@ root = tk.Tk()
 root.withdraw()
 
 folderpath = filedialog.askdirectory()
+
+# create a new folder for future Left right fusion in the upper directory/folder
+pattern = re.compile(r"(.*./)\w+$")
+root_folder = pattern.findall(folderpath)
+root_folder = root_folder[0]
+os.chdir(root_folder)
+os.mkdir("LR_fusion")
 os.chdir(folderpath)
 
-xml_name = folderpath + "\\" + "terastitcher" + ".xml"
+# find out the illumination side
+pattern = re.compile(r"(.*./)(Left|Right)(./.*./)?")
+illumination_side = pattern.findall(folderpath)
+illumination_side = illumination_side[0][1] 
+
+xml_name = folderpath + "\\" + "terastitcher_for_XY" + ".xml"
+meta_name = "meta_for_LR_fusion" + ".txt"
 
 file_list = glob.glob('*tif_meta.txt')
-#file_list = glob.glob('*_meta.txt_10.txt')
 pattern_y = re.compile(r"X-?\d+_Y(-?\d+)")
 pattern_x = re.compile(r"X(-?\d+)_Y-?\d+")
 
@@ -91,8 +103,12 @@ with open(file_list[0],'r') as a_metafile:
     output = pattern.findall(im_info)
     slice_no = int(output[0])
 
-#slice_no = 19    
-    
+    pattern = re.compile(r"[\[]x_pixels[\]] (\d+)")
+    x_pixel_count = get_value(pattern,im_info)
+
+    pattern = re.compile(r"[\[]y_pixels[\]] (\d+)")
+    y_pixel_count = get_value(pattern,im_info)     
+
 with open(xml_name,'w') as xml_file:
     xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
     xml_file.write("<!DOCTYPE TeraStitcher SYSTEM \"TeraStitcher.DTD\">\n")
@@ -134,8 +150,7 @@ with open(xml_name,'w') as xml_file:
             
             
             pattern = re.compile(r"(.*)_meta.txt")
-            image_name = pattern.findall(file_name)[0]
-            #image_name = image_name + "_10.tif"            
+            image_name = pattern.findall(file_name)[0]           
             print(image_name)
             xml_file.write(" IMG_REGEX=\"%s\">\n"%(image_name))
             
@@ -147,3 +162,17 @@ with open(xml_name,'w') as xml_file:
     xml_file.write("    </STACKS>\n")
     xml_file.write("</TeraStitcher>\n")
 
+fusion_folder = root_folder + "/LR_fusion/"
+os.chdir(fusion_folder)
+
+if os.path.exists(meta_name):
+    with open(meta_name,'w') as meta_file:
+        meta_file.write("[x positions_%s] : %r\n" % (illumination_side,x_pos_all))
+else:    
+    with open(meta_name,'w') as meta_file:
+        meta_file.write("[pixel size of x (µm)] : %.3f\n"%dim_H)
+        meta_file.write("[pixel size of y (µm)] : %.3f\n"%dim_V)
+        meta_file.write("[z step size (µm)] : %.3f\n"%dim_D)
+        meta_file.write("[pixel counts in x] : %d\n"%x_pixel_count)
+        meta_file.write("[pixel counts in y] : %d\n"%y_pixel_count)
+        meta_file.write("[x positions_%s] : %r\n" % (illumination_side,x_pos_all))
