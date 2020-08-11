@@ -6,12 +6,12 @@ import tkinter as tk
 import multiprocessing
 
 def segmented_transpose(n,filename,LoadedPagesNo,new_shape,isdorsal):
-    # new_shape is a transposed shape, the order is axis 2 = z
+    # new_shape is a transposed shape
     # n is the serial number of the first page to be loaded.
     with TFF.TiffFile(filename) as tif:
         ori_z_layers = len(tif.pages)
 
-    diff = new_shape[2] - ori_z_layers
+    diff = new_shape[1] - ori_z_layers
         
     if n + LoadedPagesNo < ori_z_layers :
         # when this if statement is satisfied, images can be loaded fully without worrying out of index 
@@ -21,17 +21,17 @@ def segmented_transpose(n,filename,LoadedPagesNo,new_shape,isdorsal):
 
     if isdorsal:
         if len(an_image.shape) == 3:
-            an_image = np.flip(an_image,axis = 2)
-        elif len(an_image.shape) == 2:
             an_image = np.flip(an_image,axis = 1)
+        elif len(an_image.shape) == 2:
+            an_image = np.flip(an_image,axis = )
 
     # create a zero matrix for filling to match the size of both images
-    if tif.pages[0].shape[0] < new_shape[1]:
-        filling_shape = (an_image.shape[0], new_shape[1]-tif.pages[0].shape[0],tif.pages[0].shape[1])
+    if tif.pages[0].shape[2] < new_shape[2]:
+        filling_shape = (an_image.shape[0], tif.pages[0].shape[0], new_shape[2]-tif.pages[0].shape[1])
         filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        an_image = np.concatenate([filling_image,an_image], axis = 1)   
+        an_image = np.concatenate([filling_image,an_image], axis = 2)   
         
-    an_image = an_image.transpose(2,1,0)
+    an_image = an_image.transpose(1,0,2)
     if diff > 0:
         str_n = str(n+diff)
     else:
@@ -53,10 +53,10 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
         tmp = TFF.imread(tempname, key = loading_range)
         img.append(tmp)
 
-    img = np.concatenate(img, axis = 2)
+    img = np.concatenate(img, axis = 1)
 
     if isdorsal:
-        img = np.flip(img, axis = 2)
+        img = np.flip(img, axis = 1)
 
     for m in loading_range:
         str_m = str(m)
@@ -70,7 +70,6 @@ def Save2Raw(filename,new_shape,isdorsal):
     core_no = multiprocessing.cpu_count()-1
     ram_use = 2e9
 
-    z_layers = new_shape[2]
     new_shape = tuple(new_shape)
 
     tif = TFF.TiffFile(filename)    
@@ -81,7 +80,7 @@ def Save2Raw(filename,new_shape,isdorsal):
     else:
         print("dtype is neither uint16 or uint8")
 
-    BytesOnePage = byte * new_shape[0]*new_shape[1]
+    BytesOnePage = byte * new_shape[0]*new_shape[2]
     # calculate the adequate number of pages to load
     LoadedPagesNo = int(np.ceil(ram_use/BytesOnePage))
     print("%d pages were loaded at once for conversion"%LoadedPagesNo)
@@ -89,16 +88,16 @@ def Save2Raw(filename,new_shape,isdorsal):
     t_start = time.time()
     
     # create filling matrices for matching the shape of both images (ventral/dorsal)
-    diff = new_shape[2] - len(tif.pages)
+    diff = new_shape[1] - len(tif.pages)
     if diff > 0:
         Filling_SN = range(0,diff,LoadedPagesNo)
-        filling_shape_z = (new_shape[0], new_shape[1], LoadedPagesNo)
+        filling_shape_z = (new_shape[0], new_shape[2], LoadedPagesNo)
         filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
         for n in Filling_SN:
-            string_n = "0"*(len(str(new_shape[2])) - len(str(n)))+str(n)
+            string_n = "0"*(len(str(new_shape[1])) - len(str(n)))+str(n)
             temp_img_name = "temp_" + string_n + ".tif"
             if n == Filling_SN[-1]:
-                filling_shape_z = (new_shape[0], new_shape[1], diff-n)
+                filling_shape_z = (new_shape[0], new_shape[2], diff-n)
                 filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
             TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
     
@@ -141,7 +140,7 @@ if __name__ == "__main__":
     dorsal_shape = [len(dorsal_image.pages),dorsal_image.pages[0].shape[0], dorsal_image.pages[0].shape[1]]
     ventral_shape = [len(ventral_image.pages), ventral_image.pages[0].shape[0], ventral_image.pages[0].shape[1]]
     print("The dimension of the ventral image and the dorsal image: %r, %r\n"%tuple([ventral_shape,dorsal_shape]))
-    for n in [0,1]:
+    for n in [0,2]:
         if ventral_shape[n] > dorsal_shape[n]:
             diff = ventral_shape[n]-dorsal_shape[n]
             dorsal_shape[n] = dorsal_shape[n] + diff                    
@@ -149,7 +148,9 @@ if __name__ == "__main__":
             diff = dorsal_shape[n]-ventral_shape[n]
             ventral_shape[n] = ventral_shape[n] + diff      
     print("The new dimension of the ventral image and the dorsal image: %r, %r\n"%tuple([ventral_shape,dorsal_shape]))
-    
+    new_ventral_shape = [ventral_shape[1], ventral_shpae[0],ventral_shape[2]]
+    new_dorsal_shape = [dorsal_shape[1], dorsal_shpae[0],dorsal_shape[2]]
+
     folderpath = filedialog.askdirectory(title = "select the folder for storing converted data")
     os.chdir(folderpath)
     
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     if not os.path.isdir("ventral_image"):
         os.mkdir("ventral_image")
     os.chdir("ventral_image")
-    Save2Raw(ventral_file,ventral_shape[::-1],False)
+    Save2Raw(ventral_file,new_ventral_shape,False)
     for file in glob.glob("temp*.tif"):
         os.remove(file)
 
@@ -166,6 +167,6 @@ if __name__ == "__main__":
     if not os.path.isdir("dorsal_image"):
         os.mkdir("dorsal_image")
     os.chdir("dorsal_image")
-    Save2Raw(dorsal_file,dorsal_shape[::-1],True)
+    Save2Raw(dorsal_file,new_dorsal_shape,True)
     for file in glob.glob("temp*.tif"):
         os.remove(file)
