@@ -39,7 +39,10 @@ pattern = re.compile(r"(.*./)\w+$")
 root_folder = pattern.findall(folderpath)
 root_folder = root_folder[0]
 os.chdir(root_folder)
-os.mkdir("LR_fusion")
+if os.path.exists("LR_fusion"):
+    pass
+else:
+    os.mkdir("LR_fusion")
 os.chdir(folderpath)
 
 # find out the illumination side
@@ -166,7 +169,7 @@ fusion_folder = root_folder + "/LR_fusion/"
 os.chdir(fusion_folder)
 
 if os.path.exists(meta_name):
-    with open(meta_name,'w') as meta_file:
+    with open(meta_name,'a') as meta_file:
         meta_file.write("[x positions_%s] : %r\n" % (illumination_side,x_pos_all))
 else:    
     with open(meta_name,'w') as meta_file:
