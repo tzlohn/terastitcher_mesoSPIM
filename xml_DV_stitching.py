@@ -41,7 +41,7 @@ dim_D = simpledialog.askfloat(prompt = "the pixel size in x:", title = "")
 dim_H = simpledialog.askfloat(prompt = "the step size in z:", title = "")
 z_overlap = simpledialog.askinteger(prompt = "no. of overlapped layers between dorsal and ventral sides:", title = "")
 
-xml_name = folderpath + "//" + "terastitcher" + ".xml"
+xml_name = folderpath + "//" + "terastitcher_for_DV" + ".xml"
 
 offset_V = 0
 for folder in ["ventral_image","dorsal_image"]:
@@ -60,7 +60,7 @@ total_row = 1
 total_column = 2
 slice_no = [slice_no_ventral,slice_no_dorsal]
 print(slice_no)
-shift_no = [1, ventral_image.shape[1]-z_overlap]
+shift_no = [1, (ventral_image.shape[1]-z_overlap)*dim_D]
 print(shift_no)
 
 foldername = ['ventral_image','dorsal_image']
