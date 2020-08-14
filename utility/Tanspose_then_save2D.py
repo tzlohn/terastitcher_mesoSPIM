@@ -109,15 +109,37 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
         img.append(tmp)
 
     img = np.concatenate(img, axis = 1)
+    """
     if isdorsal:
         img = np.flip(img, axis = 1)
-
+    """
     for m in loading_range:
         str_m = str(m)
         digit_diff = len(str(x_size)) - len(str_m)
         str_m = "0"*digit_diff + str_m
-        img_name = "image_" + str_m + ".tif"    
+        img_name = "yz_" + str_m + ".tif"    
         TFF.imwrite(img_name, img[m-n], bigtiff = True)
+
+def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal):
+    TFFim = TFF.TiffFile(filename)
+    diff = new_shape[1] - len(TFFim.pages) 
+    if diff > 0:
+        if not isdorsal:
+            Filling_SN = range(0,diff,LoadedPagesNo)
+        else:
+            Filling_SN = range(len(TFFim.pages),diff+len(TFFim.pages),LoadedPagesNo)
+        filling_shape_z = (new_shape[0]-1,  LoadedPagesNo, new_shape[2])
+        filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
+
+        string_n = "0"*(len(str(new_shape[1])) - len(str(n)))+str(n)
+        temp_img_name = "temp_" + string_n + ".tif"
+        if n == Filling_SN[-1]:
+            if not isdorsal:
+                filling_shape_z = (new_shape[0]-1, diff-n, new_shape[2])
+            else:
+                filling_shape_z = (new_shape[0]-1, new_shape[1]-n, new_shape[2])
+            filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
+        TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
 
 def Save2Raw(filename,new_shape,edge_index,isdorsal):
 
@@ -143,17 +165,13 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
     
     # create filling matrices for matching the shape of both images (ventral/dorsal)
     diff = new_shape[1] - len(tif.pages)
-    if diff > 0:
-        Filling_SN = range(0,diff,LoadedPagesNo)
-        filling_shape_z = (new_shape[0]-1,  LoadedPagesNo, new_shape[2])
-        filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
-        for n in Filling_SN:
-            string_n = "0"*(len(str(new_shape[1])) - len(str(n)))+str(n)
-            temp_img_name = "temp_" + string_n + ".tif"
-            if n == Filling_SN[-1]:
-                filling_shape_z = (new_shape[0]-1, diff-n, new_shape[2])
-                filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
-            TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
+    if not isdorsal:
+        Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
+    else:
+        Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
+    Pool = multiprocessing.Pool(processes= core_no)
+    result = Pool.starmap(generate_zero_image_for_z,Pool_input)
+    Pool.close()
     
     # get chunks and transpose the axis to z,y,x
     print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")   
@@ -214,13 +232,14 @@ if __name__ == "__main__":
     os.chdir(folderpath)
     
     # convert ventral part
+    """
     if not os.path.isdir("ventral_image"):
         os.mkdir("ventral_image")
     os.chdir("ventral_image")
     Save2Raw(ventral_file,new_ventral_shape,edge_index_ventral,False)
     for file in glob.glob("temp*.tif"):
         os.remove(file)
-    
+    """
     # convert dorsal part
     os.chdir(folderpath)
     if not os.path.isdir("dorsal_image"):
