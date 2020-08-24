@@ -147,6 +147,7 @@ def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal):
             else:
                 filling_shape_z = (new_shape[0]-1, new_shape[1], new_shape[2]-n)
             filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
+        
         TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
 
 def findLostFile(stepsize,tifpages,diff,isdorsal):
@@ -223,7 +224,7 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
     #segmented_transpose(2965,filename,LoadedPagesNo,edge_index,new_shape,isdorsal)
     ##recombine transposed chuncks and save to 2D images
     # get required parameters, and calculate the resources
-    print("Step 2: save transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images")
+    print("Step 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images")
     temptifs = glob.glob("temp*.tif")
     one_temptif_size = os.stat(temptifs[0]).st_size
     one_x_layer_size = one_temptif_size/new_shape[0]
