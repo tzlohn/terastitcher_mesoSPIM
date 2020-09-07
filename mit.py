@@ -4,7 +4,7 @@ from LR_sorting import sortLR
 import sys,os,re
 
 class LR_GroupBox(QtWidgets.QGroupBox):
-    def __init__(self,parent = None, side):
+    def __init__(self,parent = None, side = None):
         super().__init__(parent)
 
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
@@ -29,7 +29,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.unstitchedFileLocation.setText(self.SortedFileLocation)        
 
 class DVTab(QtWidgets.QWidget):
-    def __init__(self,parent = None, DV):
+    def __init__(self,parent = None, DV = None):
         super().__init__(parent)
         
         self.LeftBox = LR_GroupBox(self,side = "Left")
@@ -44,12 +44,12 @@ class DVTab(QtWidgets.QWidget):
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
 
-        with open(self.parent.parent.parent.metaFile,"r") as meta:
-            wanted_line = "is " + DV + " loaded"
+        with open(self.parent().parent().parent().metaFile,"r") as meta:
+            wanted_line = DV + " raw file"
             all_lines = meta.readlines()
-            SN = self.parent.parent.parent.find_key_from_meta(wanted_line)
-            if all_lines[SN] = "True":
-                self.RawFileLocation.setText(self.)
+            [SN,value] = self.parent.parent.parent.find_key_from_meta(all_lines,wanted_line)
+            if value != "False":
+                self.RawFileLocation.setText(value)
         
         self.RawFileLocation.setReadOnly(True)
         self.reloadUnsortedfilebutton = QtWidgets.QPushButton(self)
@@ -153,10 +153,9 @@ class InitWindow(QtWidgets.QWidget):
         self.filename = self.askFilename.text()
         self.metaFile = self.prepare_meta(self.filename)
         if self.side == "ventral":
-            self.edit_meta("is ventral loaded","True")
             self.edit_meta("ventral raw file",self.DataFolder)
         elif self.side == "dorsal":
-            self.edit_meta("is dorsal loaded","True")        
+            self.edit_meta("dorsal raw file",self.DataFolder)       
         self.prerequisiteWidget.hide()
         self.mainWindow = MainWindow(self)
         self.mainWindow.show()
@@ -176,8 +175,6 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[x positions_Right] :\n")
             meta.write("[x positions_Left] :\n")
             meta.write("=== progress ===\n")
-            meta.write("[is ventral loaded] : False\n")
-            meta.write("[is dorsal loaded] : False\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : False\n")
             meta.write("[dorsal raw file] : False\n")
@@ -188,7 +185,7 @@ class InitWindow(QtWidgets.QWidget):
         meta = open(self.metaFile,"r")
         all_lines = meta.readlines()
         meta.close()
-        line_sn = self.find_key_from_meta(all_lines,key)
+        [line_sn,value] = self.find_key_from_meta(all_lines,key)
         all_lines[line_sn] = new_line
 
         if line_sn < len(all_lines):
@@ -205,12 +202,17 @@ class InitWindow(QtWidgets.QWidget):
         while a_line != key and n < len(all_line_string):
             n = n+1
             pattern = re.compile(r"[\[](%s)[\]] \:(.*)?\n"%key)
-            a_line = pattern.findall(all_line_string[n])
-            if not a_line:
+            a_line_all = pattern.findall(all_line_string[n])
+            if not a_line_all:
                 a_line = "nothing should be the same"
             else: 
-                a_line = a_line[0][0]
-        return n
+                a_line = a_line_all[0][0]
+                value = a_line_all[0][1]
+        
+        if not value:
+            return [n,"not_a_value"] 
+        else:    
+            return [n,value]
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
