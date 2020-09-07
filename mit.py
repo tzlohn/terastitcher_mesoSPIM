@@ -1,17 +1,17 @@
 from PyQt5 import QtWidgets,QtCore
 from Channel_sorting import sortChannel
 from LR_sorting import sortLR
-import sys,os
+import sys,os,re
 
 class LR_GroupBox(QtWidgets.QGroupBox):
-    def __init__(self,parent = None):
+    def __init__(self,parent = None, side):
         super().__init__(parent)
 
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
         self.unstitchedFileLocation = QtWidgets.QLineEdit(self)
         self.unstitchedFileLocation.setReadOnly(True)
         self.reloadSortedfilebutton = QtWidgets.QPushButton(self)
-        self.reloadSortedfilebutton.setText("locates the directory")
+        self.reloadSortedfilebutton.setText("Browse...")
         self.reloadSortedfilebutton.clicked.connect(self.askdirectory)
 
         self.XYStitchButton = QtWidgets.QPushButton(self)
@@ -29,13 +29,13 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.unstitchedFileLocation.setText(self.SortedFileLocation)        
 
 class DVTab(QtWidgets.QWidget):
-    def __init__(self,parent = None):
+    def __init__(self,parent = None, DV):
         super().__init__(parent)
         
-        self.LeftBox = LR_GroupBox(self)
+        self.LeftBox = LR_GroupBox(self,side = "Left")
         self.LeftBox.setTitle("Left")
 
-        self.RightBox = LR_GroupBox(self)
+        self.RightBox = LR_GroupBox(self,side = "Right")
         self.RightBox.setTitle("Right")
 
         self.LRMergeBox = QtWidgets.QGroupBox(self)
@@ -43,9 +43,17 @@ class DVTab(QtWidgets.QWidget):
 
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
+
+        with open(self.parent.parent.parent.metaFile,"r") as meta:
+            wanted_line = "is " + DV + " loaded"
+            all_lines = meta.readlines()
+            SN = self.parent.parent.parent.find_key_from_meta(wanted_line)
+            if all_lines[SN] = "True":
+                self.RawFileLocation.setText(self.)
+        
         self.RawFileLocation.setReadOnly(True)
         self.reloadUnsortedfilebutton = QtWidgets.QPushButton(self)
-        self.reloadUnsortedfilebutton.setText("locates the directory")
+        self.reloadUnsortedfilebutton.setText("Browse...")
         self.reloadUnsortedfilebutton.clicked.connect(self.askdirectory)
 
         self.LRSplitButton = QtWidgets.QPushButton(self)
@@ -76,7 +84,7 @@ class ChannelTab(QtWidgets.QWidget):
         self.DVtabs = QtWidgets.QTabWidget(parent=self)
         sides = ["ventral","dorsal"]
         for side in sides:
-            self.DVtabs.addTab(DVTab(parent),side)
+            self.DVtabs.addTab(DVTab(parent, DV = side),side)
 
         self.DVtabs.resize(600,450)
 
@@ -143,16 +151,21 @@ class InitWindow(QtWidgets.QWidget):
     def getParameters(self):
         self.side = self.askSideWidget.currentText()
         self.filename = self.askFilename.text()
-        self.prepare_meta(self.filename)
+        self.metaFile = self.prepare_meta(self.filename)
+        if self.side == "ventral":
+            self.edit_meta("is ventral loaded","True")
+            self.edit_meta("ventral raw file",self.DataFolder)
+        elif self.side == "dorsal":
+            self.edit_meta("is dorsal loaded","True")        
         self.prerequisiteWidget.hide()
-        mainWindow = MainWindow(self)
-        mainWindow.show()
-    
+        self.mainWindow = MainWindow(self)
+        self.mainWindow.show()
+        
     def popupMain(self):
         self.metaFile = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open a existed project")
 
     def prepare_meta(self,filename):
-        meta_name = filename[0] + "_meta.txt"
+        meta_name = filename + "_meta.txt"
         with open(meta_name,"w") as meta:
             meta.write("=== system parameters ===\n")
             meta.write("[pixel size of x (um)] :\n")
@@ -163,10 +176,42 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[x positions_Right] :\n")
             meta.write("[x positions_Left] :\n")
             meta.write("=== progress ===\n")
+            meta.write("[is ventral loaded] : False\n")
+            meta.write("[is dorsal loaded] : False\n")
             meta.write("=== file location ===\n")
-            
+            meta.write("[ventral raw file] : False\n")
+            meta.write("[dorsal raw file] : False\n")
+        return meta_name
+    
+    def edit_meta(self,key,value):
+        new_line = "["+ key + "]" + " : " + str(value) +"\n"
+        meta = open(self.metaFile,"r")
+        all_lines = meta.readlines()
+        meta.close()
+        line_sn = self.find_key_from_meta(all_lines,key)
+        all_lines[line_sn] = new_line
 
-        
+        if line_sn < len(all_lines):
+            with open(self.metaFile,"w") as meta:
+                meta.writelines(all_lines)
+        """        
+        elif line_sn == len(all_lines):
+            with open(self.metaFile,"a") as meta:
+                meta.writelines(all_lines)
+        """
+    def find_key_from_meta(self,all_line_string,key):
+        a_line = "nothing should be the same"
+        n = -1
+        while a_line != key and n < len(all_line_string):
+            n = n+1
+            pattern = re.compile(r"[\[](%s)[\]] \:(.*)?\n"%key)
+            a_line = pattern.findall(all_line_string[n])
+            if not a_line:
+                a_line = "nothing should be the same"
+            else: 
+                a_line = a_line[0][0]
+        return n
+
 def main():
     app = QtWidgets.QApplication(sys.argv)
     window = InitWindow()
