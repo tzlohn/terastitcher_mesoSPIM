@@ -1,6 +1,7 @@
 from PyQt5 import QtWidgets,QtCore
 from Channel_sorting import sortChannel
 from LR_sorting import sortLR
+from xml_XY_stitching import xml_XY
 import sys,os,re
 
 def find_key_from_meta(all_line_string,key):
@@ -38,9 +39,27 @@ def edit_meta(metaFile,key,value):
             meta.writelines(all_lines)
     """
 
+def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif",is_onlymerge = False):
+    
+    if is_onlymerge == False:
+        string = 'terastitcher --import --projin="' + xmlname + '"'
+        os.system(string)
+        os.system('terastitcher --displcompute --projin="xml_import.xml"')
+        os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
+        os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
+        os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
+    string = 'terastitcher --merge --projin="xml_merging.xml" --volout="' + output_folder + '" --volout_plugin="' +volout_plugin + '" --imout_format=' + imout_format +' --imout_depth="16" --libtiff_uncompress'
+    os.system(string)
+
+class LR_MergeBox(QtWidgets.QGroupBox):
+    def __init__(self,parent = None, DV = None):
+        super().__init__(parent)
+
+
 class LR_GroupBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None, side = None):
         super().__init__(parent)
+        self.side = side
 
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
         self.unstitchedFileLocation = QtWidgets.QLineEdit(self)
@@ -48,7 +67,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.reloadSortedfilebutton = QtWidgets.QPushButton(self)
         self.reloadSortedfilebutton.setText("Browse...")
         self.reloadSortedfilebutton.clicked.connect(self.askdirectory)
-
+        
         self.XYStitchButton = QtWidgets.QPushButton(self)
         self.XYStitchButton.setText("generate xml and stitch")
         self.XYStitchButton.clicked.connect(self.XYstitch)
@@ -65,7 +84,18 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.unstitchedFileLocation.setText(self.SortedFileLocation)
 
     def XYstitch(self):
-        pass        
+        # possible bug: the file location is not end with /Left or /Right
+        # xml is in FileLocation, which will be chdir in xml_XY
+        # after stitching, the file location for fusion file can be saved to meta file with /LR_fusion appended
+        FileLocation = self.unstitchedFileLocation.text()
+        os.chdir(FileLocation)
+        meta_data = xml_XY(FileLocation)
+        os.mkdir("XY_stitched")
+        run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
+        for key in meta_data.keys():
+            edit_meta(self.parent.pars_channelTab.pars_initwindow.metaFile, key, meta_data[key])
+        meta_key = self.parent.DV + " " + self.side + " file"
+        edit_meta(self.parent.pars_channelTab.metaFile,meta_key,FileLocation+"/XY_stitched")
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
@@ -81,7 +111,7 @@ class DVTab(QtWidgets.QWidget):
         self.RightBox.setTitle("Right")
         self.RightBox.setDisabled(True)
 
-        self.LRMergeBox = QtWidgets.QGroupBox(self)
+        self.LRMergeBox = LR_MergeBox(self,DV = self.DV)
         self.LRMergeBox.setTitle("Left-Right merge")
 
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
@@ -229,8 +259,8 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[z step size (um)] :\n")
             meta.write("[pixel counts in x] :\n")
             meta.write("[pixel counts in y] :\n")
-            meta.write("[x positions_Right] :\n")
-            meta.write("[x positions_Left] :\n")
+            meta.write("[x positions Right] :\n")
+            meta.write("[x positions Left] :\n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
