@@ -58,7 +58,7 @@ def get_text_from_meta(metaFile,key):
         [SN,text] = find_key_from_meta(all_lines,key)    
         return text
 
-def get_file_location_of_terastitched_file(root_folder):    
+def get_file_location_of_terastitched_file(root_folder,new_name):    
     isDir = True
     folder = root_folder
     while isDir:
@@ -72,11 +72,10 @@ def get_file_location_of_terastitched_file(root_folder):
             else:
                 isDir = False
     the_file = os.listdir(folder)
-    os.rename(the_file,"XY_stitched.tif")
-    shutil.move("XY_stitched.tif",root_folder)
-    return os.path.join(root_folder,"XY_stitched.tif")
+    os.rename(the_file,new_name)
+    shutil.move(new_name,root_folder)
+    return os.path.join(root_folder,new_name)
        
-
 class LR_MergeBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None):
         super().__init__(parent)
@@ -103,7 +102,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         os.chdir(self.parent.merge_folder)
         os.mkdir("merged")
         run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries")
-        output_location = get_file_location_of_terastitched_file(self.parent.merge_folder+"/merged")
+        output_location = get_file_location_of_terastitched_file(self.parent.merge_folder+"/merged","LR_merged")
         key = self.parent.DV + " merged image"
         edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
 
@@ -151,7 +150,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         for key in meta_data.keys():
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initwindow.metaFile, key, meta_data[key])
         meta_key = self.parent.DV + " " + self.side + " file"
-        new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched")
+        new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched")
         edit_meta(self.parent.pars_channelTab.metaFile,meta_key,new_file_location)
 
 class DVFusionTab(QtWidgets.QWidget):
@@ -202,7 +201,7 @@ class DVFusionTab(QtWidgets.QWidget):
 
     def DV_fusion(self):
         pass
-    
+
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
         super().__init__(parent)
