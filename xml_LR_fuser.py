@@ -56,11 +56,11 @@ def finding_index_for_zero(im_file, page_num, side, removed_x):
 
     offset_threshold = find_all_0_rows(last_layers)
     
-    if side is "left":
+    if side == "left":
         delta = 1
         n = -1
         last_layers = last_layers[:,:,removed_x:column_num]
-    elif side is "right":
+    elif side == "right":
         delta = -1
         n = column_num-removed_x-1
         last_layers = last_layers[:,:,0:column_num-removed_x]
@@ -78,9 +78,9 @@ def finding_index_for_zero(im_file, page_num, side, removed_x):
         index_of_0 = np.where(columns == 0)[0]
         size_of_0 = index_of_0.shape[0]
 
-    if side is "right":
+    if side == "right":
         return n+removed_x
-    elif side is "left":
+    elif side == "left":
         return n
 
 def get_dim_match_image(im, x_diff,y_diff,side):
@@ -142,15 +142,7 @@ def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folde
 # 1) rotates both images 90 degree
 # 2) remove overlapped pixels to make both dimensions identical
 
-def main():
-    root =  tk.Tk()
-    root.withdraw()
-
-    working_folder = filedialog.askdirectory(title = "selecting the working folder for storing stitched data")
-    os.chdir(working_folder)
-
-    left_file = filedialog.askopenfilename(title = "select the left image")
-    right_file = filedialog.askopenfilename(title = "select the right image")
+def matchLR_to_xml(working_folder,left_file,right_file):
 
     t_start = time.time()
 
@@ -307,4 +299,12 @@ def main():
         xml_file.write("</TeraStitcher>\n")
 
 if __name__ == "__main__":
-    main()
+    root =  tk.Tk()
+    root.withdraw()
+
+    working_folder = filedialog.askdirectory(title = "selecting the working folder for storing stitched data")
+    os.chdir(working_folder)
+
+    left_file = filedialog.askopenfilename(title = "select the left image")
+    right_file = filedialog.askopenfilename(title = "select the right image")
+    matchLR_to_xml(working_folder,left_file,right_file)

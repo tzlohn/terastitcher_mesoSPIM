@@ -2,7 +2,9 @@ from PyQt5 import QtWidgets,QtCore
 from Channel_sorting import sortChannel
 from LR_sorting import sortLR
 from xml_XY_stitching import xml_XY
-import sys,os,re
+from Transpose_then_save2D import trapoSave
+import xml_LR_fuser
+import sys,os,re,shutil
 
 def find_key_from_meta(all_line_string,key):
     a_line = "nothing should be the same"
@@ -39,8 +41,7 @@ def edit_meta(metaFile,key,value):
             meta.writelines(all_lines)
     """
 
-def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif",is_onlymerge = False):
-    
+def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
         string = 'terastitcher --import --projin="' + xmlname + '"'
         os.system(string)
@@ -51,10 +52,60 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif"
     string = 'terastitcher --merge --projin="xml_merging.xml" --volout="' + output_folder + '" --volout_plugin="' +volout_plugin + '" --imout_format=' + imout_format +' --imout_depth="16" --libtiff_uncompress'
     os.system(string)
 
-class LR_MergeBox(QtWidgets.QGroupBox):
-    def __init__(self,parent = None, DV = None):
-        super().__init__(parent)
+def get_text_from_meta(metaFile,key):    
+    with open(metaFile,"r") as meta:
+        all_lines = meta.readlines()
+        [SN,text] = find_key_from_meta(all_lines,key)    
+        return text
 
+def get_file_location_of_terastitched_file(root_folder):    
+    isDir = True
+    folder = root_folder
+    while isDir:
+        listdir = os.listdir(folder)        
+        for item in listdir:
+            new_item = os.path.join(folder,item)
+            if os.path.isdir(new_item):
+                isDir = True
+                folder = new_item
+                break
+            else:
+                isDir = False
+    the_file = os.listdir(folder)
+    os.rename(the_file,"XY_stitched.tif")
+    shutil.move("XY_stitched.tif",root_folder)
+    return os.path.join(root_folder,"XY_stitched.tif")
+       
+
+class LR_MergeBox(QtWidgets.QGroupBox):
+    def __init__(self,parent = None):
+        super().__init__(parent)
+        self.parent = parent
+        self.LR_matchButton = QtWidgets.QPushButton(self)
+        self.LR_matchButton.setText("match their dimension and generate xml")
+        self.LR_matchButton.clicked.connect(self.prep_LR_merge)
+
+        self.LR_mergeButton = QtWidgets.QPushButton(self)
+        self.LR_mergeButton.setText("Merge left and right")
+        self.LR_mergeButton.clicked.connect(self.LR_merge)
+        #self.LR_mergeButton.setDisabled(True)
+
+    def prep_LR_merge(self):
+        left_line = self.parent.DV + " left stitched"
+        right_line = self.parent.DV + " left stitched"
+        self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
+        self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
+        #self.LR_mergeButton.setDisabled(False)
+        xml_LR_fuser.matchLR_to_xml(self.parent.merge_folder,self.left_file,self.right_file)
+    
+    def LR_merge(self):
+        key = self.parent.DV + " raw file"
+        os.chdir(self.parent.merge_folder)
+        os.mkdir("merged")
+        run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries")
+        output_location = get_file_location_of_terastitched_file(self.parent.merge_folder+"/merged")
+        key = self.parent.DV + " merged image"
+        edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
 
 class LR_GroupBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None, side = None):
@@ -63,6 +114,11 @@ class LR_GroupBox(QtWidgets.QGroupBox):
 
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
         self.unstitchedFileLocation = QtWidgets.QLineEdit(self)
+        key = parent.DV + " " + side + " file"
+        file_location = get_text_from_meta(parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key)
+        if file_location != "Not assigned":
+            self.unstitchedFileLocation.setText(file_location)
+
         self.unstitchedFileLocation.setReadOnly(True)
         self.reloadSortedfilebutton = QtWidgets.QPushButton(self)
         self.reloadSortedfilebutton.setText("Browse...")
@@ -89,14 +145,64 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         # after stitching, the file location for fusion file can be saved to meta file with /LR_fusion appended
         FileLocation = self.unstitchedFileLocation.text()
         os.chdir(FileLocation)
-        meta_data = xml_XY(FileLocation)
+        [meta_data,self.merge_folder] = xml_XY(FileLocation)
         os.mkdir("XY_stitched")
         run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
         for key in meta_data.keys():
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initwindow.metaFile, key, meta_data[key])
         meta_key = self.parent.DV + " " + self.side + " file"
-        edit_meta(self.parent.pars_channelTab.metaFile,meta_key,FileLocation+"/XY_stitched")
+        new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched")
+        edit_meta(self.parent.pars_channelTab.metaFile,meta_key,new_file_location)
 
+class DVFusionTab(QtWidgets.QWidget):
+    def __init__(self, parent = None, channel = channel):
+        super().__init__(parent)
+
+        self.transpose_in_2D = QtWidgtes.QPushButton(self)
+        self.transpose_in_2D.setText("pre-processing the image")
+        self.transpose_in_2D.clicked.connect(self.transpose_then_save)
+
+        self.open_image_folders = QtWidgets.QPushButton(self)
+        self.open_image_folders.setText("open the folders containing images")
+        self.open_image_folders.clicked.connect(self.open_folders)
+
+        self.label_WidthShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in width in the image:")
+        self.shift_in_Width = QtWidgets.QLineEdit(self)
+
+        self.label_HeightShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in height in the image:")
+        self.shift_in_Height = QtWidgets.QLineEdit(self)
+
+        self.generate_DV_xml = QtWidgets.QPushButton(self)
+        self.generate_DV_xml.setText("match the dimension of DV images and generate xml")
+        self.generate_DV_xml.clicked.connect(self.match_DV_fusion)
+
+        self.fuse_DV = QtWidgets.QPushButton(self)
+        self.fuse_DV.setText("DV fusion!!")
+        self.fuse_DV.clicked.connect(self.DV_fusion)
+
+        self.layout = QtWidgets.QGridLayout(self)
+        self.layout.addWidget(self.transpose_in_2D, 0,0,1,4)
+        self.layout.addWidget(self.open_image_folders, 1,0,1,4)
+        self.layout.addWidget(self.label_WidthShift,2,0,1,3)
+        self.layout.addWidget(self.shift_in_Width,2,0,3,1)
+        self.layout.addWidget(self.label_HeightShift,3,0,1,3)
+        self.layout.addWidget(self.shift_in_Height,3,0,3,1)
+        self.layout.addWidget(self.generate_DV_xml,4,0,1,4)
+        self.layout.addWidget(self.fuse_DV,5,0,1,4)
+        self.setLayout(self.layout)        
+
+    def transpose_then_save(self):
+        trapoSave()
+    
+    def open_folders(self):
+        pass
+
+    def match_DV_fusion(self):
+        pass
+
+    def DV_fusion(self):
+        pass
+    
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
         super().__init__(parent)
@@ -111,21 +217,18 @@ class DVTab(QtWidgets.QWidget):
         self.RightBox.setTitle("Right")
         self.RightBox.setDisabled(True)
 
-        self.LRMergeBox = LR_MergeBox(self,DV = self.DV)
+        self.LRMergeBox = LR_MergeBox(self)
         self.LRMergeBox.setTitle("Left-Right merge")
 
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
 
-        with open(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
-            self.current_line = self.DV + " raw file"
-            all_lines = meta.readlines()
-            [SN,file_location] = find_key_from_meta(all_lines,self.current_line)
-            if file_location != "Not assigned":
-                self.file_location = file_location + "/"+parent.channel
-                self.RawFileLocation.setText(self.file_location)
-                
-        
+        self.current_line = self.DV + " raw file"
+        file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
+        if file_location != "Not assigned":
+            self.file_location = file_location + "/"+parent.channel
+            self.RawFileLocation.setText(self.file_location)
+                        
         self.RawFileLocation.setReadOnly(True)
         self.reloadUnsortedfilebutton = QtWidgets.QPushButton(self)
         self.reloadUnsortedfilebutton.setText("Browse...")
@@ -173,6 +276,7 @@ class ChannelTab(QtWidgets.QWidget):
         sides = ["ventral","dorsal"]
         for side in sides:
             self.DVtabs.addTab(DVTab(parent = self, DV = side),side)
+        self.DVtabs.addTab(DVFusionTab(parent = self, channel = channel),"fusion")
 
         self.DVtabs.resize(600,500)
 
@@ -250,6 +354,18 @@ class InitWindow(QtWidgets.QWidget):
         
     def popupMain(self):
         self.metaFile = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open a existed project")
+        self.mainWindow = MainWindow(self)
+        
+        with open(self.metaFile,"r") as meta:
+            all_lines = meta.readlines()
+        pattern = re.compile(r"[\[](.*)[\]] : (.*)")
+        all_items = pattern.findall(all_lines)
+        
+        metas = dict()
+        for n in len(all_items[0]):
+            metas[all_items[0][n]] = all_items[1][n]
+        
+        self.mainWindow.show()
 
     def prepare_meta(self,filename):
         meta_name = filename + "_meta.txt"
@@ -267,9 +383,15 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[ventral raw file] : Not assigned\n")
             meta.write("[ventral left file] : Not assigned\n")
             meta.write("[ventral right file] : Not assigned\n")
+            meta.write("[ventral left stitched] : Not assigned\n")
+            meta.write("[ventral right stitched] : Not assigned\n")
+            meta.write("[ventral merged image] : Not assinged\n")
             meta.write("[dorsal raw file] : Not assigned\n")
             meta.write("[dorsal left file] : Not assigned\n")
             meta.write("[dorsal right file] : Not assigned\n")
+            meta.write("[dorsal left stitched] : Not assigned\n")
+            meta.write("[dorsal right stitched] : Not assigned\n")
+            meta.write("[dorsal merged image] : Not assinged\n")
 
         return meta_name
     

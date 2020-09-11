@@ -174,7 +174,7 @@ def xml_XY(folderpath):
     meta_data[side_position] = x_pos_all
     #xml_location = illumination_side + " xml"
     #meta_data[xml_location] = xml_name
-    return meta_data
+    return [meta_data,fusion_folder]
     """
         with open(meta_name,'w') as meta_file:
             meta_file.write("[pixel size of x (µm)] : %.3f\n"%dim_H)
