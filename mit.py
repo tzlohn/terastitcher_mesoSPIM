@@ -9,7 +9,7 @@ def find_key_from_meta(all_line_string,key):
     n = -1
     while a_line != key and n < len(all_line_string):
         n = n+1
-        pattern = re.compile(r"[\[](%s)[\]] \:(.*)?\n"%key)
+        pattern = re.compile(r"[\[](%s)[\]] \: (.*)?\n"%key)
         a_line_all = pattern.findall(all_line_string[n])
         if not a_line_all:
             a_line = "nothing should be the same"
@@ -93,7 +93,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         os.mkdir("XY_stitched")
         run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
         for key in meta_data.keys():
-            edit_meta(self.parent.pars_channelTab.pars_initwindow.metaFile, key, meta_data[key])
+            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initwindow.metaFile, key, meta_data[key])
         meta_key = self.parent.DV + " " + self.side + " file"
         edit_meta(self.parent.pars_channelTab.metaFile,meta_key,FileLocation+"/XY_stitched")
 
@@ -117,13 +117,14 @@ class DVTab(QtWidgets.QWidget):
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
 
-        with open(self.pars_channelTab.pars_initWindow.metaFile,"r") as meta:
+        with open(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
             self.current_line = self.DV + " raw file"
             all_lines = meta.readlines()
             [SN,file_location] = find_key_from_meta(all_lines,self.current_line)
             if file_location != "Not assigned":
-                self.RawFileLocation.setText(file_location)
-                self.file_location = file_location
+                self.file_location = file_location + "/"+parent.channel
+                self.RawFileLocation.setText(self.file_location)
+                
         
         self.RawFileLocation.setReadOnly(True)
         self.reloadUnsortedfilebutton = QtWidgets.QPushButton(self)
@@ -147,50 +148,50 @@ class DVTab(QtWidgets.QWidget):
     def askdirectory(self):
         self.file_location = QtWidgets.QFileDialog.getExistingDirectory(self)
         self.RawFileLocation.setText(self.file_location)
-        edit_meta(self.pars_channelTab.pars_initWindow.metaFile,self.current_line,self.file_location)        
+        edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line,self.file_location)        
 
     def splitLR(self):
-        #sortLR(self.file_location)
+        sortLR(self.file_location)
         key_left = self.DV+" left file"
         key_right = self.DV+" right file"
         self.left_location = self.file_location + "/Left"
         self.right_location = self.file_location + "/Right"
-        edit_meta(self.pars_channelTab.pars_initWindow.metaFile,key_left,self.left_location)
-        edit_meta(self.pars_channelTab.pars_initWindow.metaFile,key_right,self.right_location)
+        edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key_left,self.left_location)
+        edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key_right,self.right_location)
         self.LeftBox.unstitchedFileLocation.setText(self.left_location)
         self.RightBox.unstitchedFileLocation.setText(self.right_location)
         self.LeftBox.setDisabled(False)
         self.RightBox.setDisabled(False)
           
 class ChannelTab(QtWidgets.QWidget):
-    def __init__(self,parent = None):
+    def __init__(self,parent = None, channel = None):
         super().__init__(parent)
+        self.channel = channel
         self.pars_mainWindow = parent
         self.DVtabs = QtWidgets.QTabWidget(parent=self)
         
         sides = ["ventral","dorsal"]
         for side in sides:
-            self.DVtabs.addTab(DVTab(parent, DV = side),side)
+            self.DVtabs.addTab(DVTab(parent = self, DV = side),side)
 
-        self.DVtabs.resize(600,450)
+        self.DVtabs.resize(600,500)
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self,parent = None):
         super().__init__(parent)
         self.setWindowTitle("Stitching workpanel")
+        self.resize(600,500)
         self.channel_tabs = QtWidgets.QTabWidget(parent=self)
 
         self.pars_initWindow = parent
-        current_folder = os.getcwd()
         channel_folders = self.splitChannels()
         for a_channel_folder in channel_folders:
-            self.channel_tabs.addTab(ChannelTab(self), a_channel_folder)
-
+            self.channel_tabs.addTab(ChannelTab(parent = self,channel = a_channel_folder), a_channel_folder)
+        print(self.channel_tabs)
         self.channel_tabs.resize(600,450)
 
     def splitChannels(self):    
-        #channel_folder = sortChannel(os.getcwd())
-        channel_folder = ["test1","test2","test3"]
+        channel_folder = sortChannel(os.getcwd())
         return channel_folder
 
 

@@ -18,11 +18,13 @@ working_folder = filedialog.askdirectory()
 os.chdir(working_folder)
 """
 def sortLR(working_folder):
+
     # magic number zone #
 
     background_intensity = 120
+    os.chdir(working_folder)
     all_files = glob.glob("*")
-
+    
     # rename all files, remove the serial number in the end
     for aFile in all_files:
         pattern = re.compile(r'(.raw_meta.txt|.raw)')
