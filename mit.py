@@ -89,6 +89,11 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.LR_mergeButton.clicked.connect(self.LR_merge)
         #self.LR_mergeButton.setDisabled(True)
 
+        self.layout = QtWidgets.QGridLayout(self)
+        self.layout.addWidget(self.LR_matchButton,0,0,0,1)
+        self.layout.addWidget(self.LR_mergeButton,1,0,0,1)
+        self.setLayout(self.layout)
+
     def prep_LR_merge(self):
         left_line = self.parent.DV + " left stitched"
         right_line = self.parent.DV + " left stitched"
@@ -154,10 +159,10 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         edit_meta(self.parent.pars_channelTab.metaFile,meta_key,new_file_location)
 
 class DVFusionTab(QtWidgets.QWidget):
-    def __init__(self, parent = None, channel = channel):
+    def __init__(self, parent = None, channel = None):
         super().__init__(parent)
 
-        self.transpose_in_2D = QtWidgtes.QPushButton(self)
+        self.transpose_in_2D = QtWidgets.QPushButton(self)
         self.transpose_in_2D.setText("pre-processing the image")
         self.transpose_in_2D.clicked.connect(self.transpose_then_save)
 
@@ -208,11 +213,11 @@ class DVTab(QtWidgets.QWidget):
         self.pars_channelTab = parent
         self.DV = DV
 
-        self.LeftBox = LR_GroupBox(self,side = "Left")
+        self.LeftBox = LR_GroupBox(self,side = "left")
         self.LeftBox.setTitle("Left")
         self.LeftBox.setDisabled(True)
 
-        self.RightBox = LR_GroupBox(self,side = "Right")
+        self.RightBox = LR_GroupBox(self,side = "right")
         self.RightBox.setTitle("Right")
         self.RightBox.setDisabled(True)
 
