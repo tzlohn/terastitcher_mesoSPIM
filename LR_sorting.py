@@ -45,6 +45,7 @@ def sortLR(working_folder):
 
         if not os.path.exists(new_name):
             os.rename(aFile,new_name)
+# potential bug: if file exists, then this bug will create crashed when finding the name.
 
     os.mkdir("Left")
     os.mkdir("Right")
@@ -53,7 +54,7 @@ def sortLR(working_folder):
 
     t_start = time.time()
     for a_raw_file in all_raw_files:
-        pattern = re.compile(r'(.*)(_left|_right|_Left|_Right)(.*).raw')
+        pattern = re.compile(r'(.*)(_left|_right|_Left|_Right).*.raw')
         filename_piece = pattern.findall(a_raw_file)
         print(a_raw_file)
         if not filename_piece:
@@ -85,22 +86,24 @@ def sortLR(working_folder):
                 im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
             n = 0
             new_name = ""
-            while filename_piece[0][n]:
+            while n < len(filename_piece[0]):
                 new_name = new_name + filename_piece[0][n]
                 n = n+1
             new_tif_name = new_name + ".tif"
+            
             TFF.imwrite(new_tif_name, data = im, bigtiff = True)
 
             # save the meta for tiff
             new_meta_name = new_name+".tif_meta.txt"
             copyfile(its_meta_file,new_meta_name)
-
+        
             if filename_piece[0][1] == "_Left":
                 shutil.move(new_tif_name, working_folder+"/Left")    
                 shutil.move(new_meta_name, working_folder+"/Left")
             elif filename_piece[0][1] == "_Right":    
                 shutil.move(new_tif_name, working_folder+"/Right")
                 shutil.move(new_meta_name, working_folder+"/Right")
+            
             t_end = time.time()
 
             estimate_time = ((t_end-t_start)/(all_raw_files.index(a_raw_file)+1))*len(all_raw_files)

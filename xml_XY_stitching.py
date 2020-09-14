@@ -165,9 +165,9 @@ def xml_XY(folderpath):
     os.chdir(fusion_folder)
 
     meta_data = dict()
-    meta_data["pixel size of x (um)"] = dim_H
-    meta_data["pixel size of y (um)"] = dim_V
-    meta_data["z step size (um)"] = dim_D
+    meta_data["pixel size of x \(um\)"] = dim_H
+    meta_data["pixel size of y \(um\)"] = dim_V
+    meta_data["z step size \(um\)"] = dim_D
     meta_data["pixel counts in x"] = x_pixel_count
     meta_data["pixel counts in y"] = y_pixel_count
     side_position = "x position " + illumination_side

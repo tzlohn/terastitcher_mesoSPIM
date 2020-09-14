@@ -43,13 +43,13 @@ def edit_meta(metaFile,key,value):
 
 def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
-        string = 'terastitcher --import --projin="' + xmlname + '"'
+        string = 'terastitcher --import --projin=\"' + xmlname + '\"'
         os.system(string)
         os.system('terastitcher --displcompute --projin="xml_import.xml"')
         os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
         os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
         os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
-    string = 'terastitcher --merge --projin="xml_merging.xml" --volout="' + output_folder + '" --volout_plugin="' +volout_plugin + '" --imout_format=' + imout_format +' --imout_depth="16" --libtiff_uncompress'
+    string = 'terastitcher --merge --projin=\"xml_merging.xml\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
     os.system(string)
 
 def get_text_from_meta(metaFile,key):    
@@ -115,8 +115,9 @@ class LR_GroupBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None, side = None):
         super().__init__(parent)
         self.side = side
-
+        self.parent = parent
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
+        self.unstitchedFileLabel.setMaximumHeight(15)
         self.unstitchedFileLocation = QtWidgets.QLineEdit(self)
         key = parent.DV + " " + side + " file"
         file_location = get_text_from_meta(parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key)
@@ -133,8 +134,8 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.XYStitchButton.clicked.connect(self.XYstitch)
 
         self.grouplayout = QtWidgets.QGridLayout()
-        self.grouplayout.addWidget(self.unstitchedFileLabel,0,0)
-        self.grouplayout.addWidget(self.reloadSortedfilebutton,0,1)
+        self.grouplayout.addWidget(self.unstitchedFileLabel,0,0,1,1)
+        self.grouplayout.addWidget(self.reloadSortedfilebutton,0,1,1,1)
         self.grouplayout.addWidget(self.unstitchedFileLocation,1,0,1,2)
         self.grouplayout.addWidget(self.XYStitchButton,2,0,1,2)
         self.setLayout(self.grouplayout)
@@ -150,10 +151,12 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         FileLocation = self.unstitchedFileLocation.text()
         os.chdir(FileLocation)
         [meta_data,self.merge_folder] = xml_XY(FileLocation)
+        os.chdir(FileLocation)
         os.mkdir("XY_stitched")
         run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
+        self.parent.pars_channelTab.pars_mainWindow.pars_initWindow
         for key in meta_data.keys():
-            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initwindow.metaFile, key, meta_data[key])
+            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
         meta_key = self.parent.DV + " " + self.side + " file"
         new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched")
         edit_meta(self.parent.pars_channelTab.metaFile,meta_key,new_file_location)
@@ -215,17 +218,18 @@ class DVTab(QtWidgets.QWidget):
 
         self.LeftBox = LR_GroupBox(self,side = "left")
         self.LeftBox.setTitle("Left")
-        self.LeftBox.setDisabled(True)
+        #self.LeftBox.setDisabled(True)
 
         self.RightBox = LR_GroupBox(self,side = "right")
         self.RightBox.setTitle("Right")
-        self.RightBox.setDisabled(True)
+        #self.RightBox.setDisabled(True)
 
         self.LRMergeBox = LR_MergeBox(self)
         self.LRMergeBox.setTitle("Left-Right merge")
 
         self.RawFileLabel = QtWidgets.QLabel("raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
+        self.RawFileLabel.setMaximumHeight(15)
 
         self.current_line = self.DV + " raw file"
         file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
@@ -247,9 +251,9 @@ class DVTab(QtWidgets.QWidget):
         self.tabLayout.addWidget(self.reloadUnsortedfilebutton,0,1,1,1)
         self.tabLayout.addWidget(self.RawFileLocation,1,0,1,4)
         self.tabLayout.addWidget(self.LRSplitButton,2,0,1,4)
-        self.tabLayout.addWidget(self.LeftBox,3,0,4,2)
-        self.tabLayout.addWidget(self.RightBox,3,2,4,2)
-        self.tabLayout.addWidget(self.LRMergeBox,7,0,2,4)
+        self.tabLayout.addWidget(self.LeftBox,3,0,2,2)
+        self.tabLayout.addWidget(self.RightBox,3,2,2,2)
+        self.tabLayout.addWidget(self.LRMergeBox,5,0,2,4)
         self.setLayout(self.tabLayout)
 
     def askdirectory(self):
@@ -292,7 +296,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channel_tabs = QtWidgets.QTabWidget(parent=self)
 
         self.pars_initWindow = parent
-        channel_folders = self.splitChannels()
+        #channel_folders = self.splitChannels()
+        channel_folders = ["channel_647"]
         for a_channel_folder in channel_folders:
             self.channel_tabs.addTab(ChannelTab(parent = self,channel = a_channel_folder), a_channel_folder)
         print(self.channel_tabs)
@@ -310,7 +315,7 @@ class InitWindow(QtWidgets.QWidget):
         self.createWork = QtWidgets.QPushButton(text = "create a new stitching project", parent=self)
         self.createWork.setCheckable(True)
         self.createWork.clicked.connect(self.generateMeta)
-        self.continueWork = QtWidgets.QPushButton(text = "open an ongoing stitching project ",parent=self)
+        self.continueWork = QtWidgets.QPushButton(text = "continue a stitching project ",parent=self)
         self.continueWork.clicked.connect(self.popupMain)
         self.createWork.setGeometry(QtCore.QRect(10,10,200,50))
         self.continueWork.setGeometry(QtCore.QRect(10,70,200,50))
@@ -348,6 +353,7 @@ class InitWindow(QtWidgets.QWidget):
         self.side = self.askSideWidget.currentText()
         self.filename = self.askFilename.text()
         self.metaFile = self.prepare_meta(self.filename)
+        self.metaFile = self.DataFolder+"/"+self.metaFile
         if self.side == "ventral":
             edit_meta(self.metaFile,"ventral raw file",self.DataFolder)
         elif self.side == "dorsal":
@@ -357,9 +363,11 @@ class InitWindow(QtWidgets.QWidget):
         self.mainWindow.show()
         
     def popupMain(self):
-        self.metaFile = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open a existed project")
-        self.mainWindow = MainWindow(self)
-        
+        metaFileName = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open a existed project")
+        cwd = os.getcwd()
+        self.metaFile = os.path.join(cwd,metaFileName[0])
+        self.mainWindow = MainWindow(self)    
+        """
         with open(self.metaFile,"r") as meta:
             all_lines = meta.readlines()
         pattern = re.compile(r"[\[](.*)[\]] : (.*)")
@@ -368,7 +376,7 @@ class InitWindow(QtWidgets.QWidget):
         metas = dict()
         for n in len(all_items[0]):
             metas[all_items[0][n]] = all_items[1][n]
-        
+        """
         self.mainWindow.show()
 
     def prepare_meta(self,filename):
@@ -380,8 +388,8 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[z step size (um)] :\n")
             meta.write("[pixel counts in x] :\n")
             meta.write("[pixel counts in y] :\n")
-            meta.write("[x positions Right] :\n")
-            meta.write("[x positions Left] :\n")
+            meta.write("[x positions right] :\n")
+            meta.write("[x positions left] :\n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
