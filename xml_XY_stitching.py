@@ -170,7 +170,7 @@ def xml_XY(folderpath):
     meta_data["z step size \(um\)"] = dim_D
     meta_data["pixel counts in x"] = x_pixel_count
     meta_data["pixel counts in y"] = y_pixel_count
-    side_position = "x position " + illumination_side
+    side_position = "x positions " + illumination_side
     meta_data[side_position] = x_pos_all
     #xml_location = illumination_side + " xml"
     #meta_data[xml_location] = xml_name

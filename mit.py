@@ -9,10 +9,11 @@ import sys,os,re,shutil
 def find_key_from_meta(all_line_string,key):
     a_line = "nothing should be the same"
     n = -1
-    while a_line != key and n < len(all_line_string):
+    while a_line == "nothing should be the same" and n < len(all_line_string):
         n = n+1
+        current_str = all_line_string[n]
         pattern = re.compile(r"[\[](%s)[\]] \: (.*)?\n"%key)
-        a_line_all = pattern.findall(all_line_string[n])
+        a_line_all = pattern.findall(current_str)
         if not a_line_all:
             a_line = "nothing should be the same"
         else: 
@@ -25,7 +26,7 @@ def find_key_from_meta(all_line_string,key):
         return [n,value]
 
 def edit_meta(metaFile,key,value):
-    new_line = "["+ key + "]" + " : " + str(value) +"\n"
+    new_line = "["+ key.replace("\\","") + "]" + " : " + str(value) +"\n"
     meta = open(metaFile,"r")
     all_lines = meta.readlines()
     meta.close()
@@ -154,7 +155,6 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         os.chdir(FileLocation)
         os.mkdir("XY_stitched")
         run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
-        self.parent.pars_channelTab.pars_mainWindow.pars_initWindow
         for key in meta_data.keys():
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
         meta_key = self.parent.DV + " " + self.side + " file"
@@ -383,13 +383,13 @@ class InitWindow(QtWidgets.QWidget):
         meta_name = filename + "_meta.txt"
         with open(meta_name,"w") as meta:
             meta.write("=== system parameters ===\n")
-            meta.write("[pixel size of x (um)] :\n")
-            meta.write("[pixel size of y (um)] :\n")
-            meta.write("[z step size (um)] :\n")
-            meta.write("[pixel counts in x] :\n")
-            meta.write("[pixel counts in y] :\n")
-            meta.write("[x positions right] :\n")
-            meta.write("[x positions left] :\n")
+            meta.write("[pixel size of x (um)] : \n")
+            meta.write("[pixel size of y (um)] : \n")
+            meta.write("[z step size (um)] : \n")
+            meta.write("[pixel counts in x] : \n")
+            meta.write("[pixel counts in y] : \n")
+            meta.write("[x positions right] : \n")
+            meta.write("[x positions left] : \n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
