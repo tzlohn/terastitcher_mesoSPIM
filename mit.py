@@ -72,8 +72,9 @@ def get_file_location_of_terastitched_file(root_folder,new_name):
                 break
             else:
                 isDir = False
+    os.chdir(folder)            
     the_file = os.listdir(folder)
-    os.rename(the_file,new_name)
+    os.rename(the_file[0],new_name)
     shutil.move(new_name,root_folder)
     return os.path.join(root_folder,new_name)
        
@@ -81,6 +82,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None):
         super().__init__(parent)
         self.parent = parent
+        self.merge_folder = self.parent.file_location + "\LR_fusion"
         self.LR_matchButton = QtWidgets.QPushButton(self)
         self.LR_matchButton.setText("match their dimension and generate xml")
         self.LR_matchButton.clicked.connect(self.prep_LR_merge)
@@ -101,14 +103,14 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
         self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
         #self.LR_mergeButton.setDisabled(False)
-        xml_LR_fuser.matchLR_to_xml(self.parent.merge_folder,self.left_file,self.right_file)
+        xml_LR_fuser.matchLR_to_xml(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.merge_folder,self.left_file,self.right_file)
     
     def LR_merge(self):
         key = self.parent.DV + " raw file"
-        os.chdir(self.parent.merge_folder)
+        os.chdir(self.merge_folder)
         os.mkdir("merged")
         run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries")
-        output_location = get_file_location_of_terastitched_file(self.parent.merge_folder+"/merged","LR_merged")
+        output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged")
         key = self.parent.DV + " merged image"
         edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
 
@@ -157,9 +159,9 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
         for key in meta_data.keys():
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
-        meta_key = self.parent.DV + " " + self.side + " file"
-        new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched")
-        edit_meta(self.parent.pars_channelTab.metaFile,meta_key,new_file_location)
+        meta_key = self.parent.DV + " " + self.side + " stitched"
+        new_file_location = get_file_location_of_terastitched_file(FileLocation+"\XY_stitched","XY_stitched.tif")
+        edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
 
 class DVFusionTab(QtWidgets.QWidget):
     def __init__(self, parent = None, channel = None):
@@ -216,6 +218,16 @@ class DVTab(QtWidgets.QWidget):
         self.pars_channelTab = parent
         self.DV = DV
 
+        self.RawFileLabel = QtWidgets.QLabel("raw file directory")
+        self.RawFileLocation = QtWidgets.QLineEdit(self)
+        self.RawFileLabel.setMaximumHeight(15)
+
+        self.current_line = self.DV + " raw file"
+        self.file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
+        if self.file_location != "Not assigned":
+            self.file_location = self.file_location + "/"+parent.channel
+            self.RawFileLocation.setText(self.file_location)
+        
         self.LeftBox = LR_GroupBox(self,side = "left")
         self.LeftBox.setTitle("Left")
         #self.LeftBox.setDisabled(True)
@@ -226,16 +238,6 @@ class DVTab(QtWidgets.QWidget):
 
         self.LRMergeBox = LR_MergeBox(self)
         self.LRMergeBox.setTitle("Left-Right merge")
-
-        self.RawFileLabel = QtWidgets.QLabel("raw file directory")
-        self.RawFileLocation = QtWidgets.QLineEdit(self)
-        self.RawFileLabel.setMaximumHeight(15)
-
-        self.current_line = self.DV + " raw file"
-        file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
-        if file_location != "Not assigned":
-            self.file_location = file_location + "/"+parent.channel
-            self.RawFileLocation.setText(self.file_location)
                         
         self.RawFileLocation.setReadOnly(True)
         self.reloadUnsortedfilebutton = QtWidgets.QPushButton(self)

@@ -142,34 +142,34 @@ def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folde
 # 1) rotates both images 90 degree
 # 2) remove overlapped pixels to make both dimensions identical
 
-def matchLR_to_xml(working_folder,left_file,right_file):
+def matchLR_to_xml(metafile,working_folder,left_file,right_file):
 
     t_start = time.time()
 
     # get required parameters from meta file
-    with open("meta_for_LR_fusion.txt",'r') as meta_file:
+    with open(metafile,'r') as meta_file:
         im_info = meta_file.read()
         
-        pattern = re.compile(r"[\[]pixel size of x \(µm\)[\]] \: (\d+)(\.)?(\d+)?")
+        pattern = re.compile(r"[\[]pixel size of x \(um\)[\]] \: (\d+)(\.)?(\d+)?")
         pixel_size_x = get_value(pattern,im_info)
 
-        pattern = re.compile(r"[\[]pixel size of y \(µm\)[\]] \: (\d+)(\.)?(\d+)?")
+        pattern = re.compile(r"[\[]pixel size of y \(um\)[\]] \: (\d+)(\.)?(\d+)?")
         pixel_size_y = get_value(pattern,im_info)
         
         pattern = re.compile(r"[\[]pixel counts in x[\]] \: (\d+)")
         x_pixels = get_value(pattern,im_info)
         x_pixels = int(x_pixels)
 
-        pattern = re.compile(r"[\[]z step size \(µm\)[\]] \: (\d+)(\.)?(\d+)?")
+        pattern = re.compile(r"[\[]z step size \(um\)[\]] \: (\d+)(\.)?(\d+)?")
         z_stepsize = get_value(pattern,im_info)
 
-        pattern = re.compile(r"[\[]x positions_Left[\]] \: [\[](.*)[\]]")
+        pattern = re.compile(r"[\[]x positions left[\]] \: [\[](.*)[\]]")
         all_left_positions = pattern.findall(im_info)
         all_left_positions = all_left_positions[0].split()
         for ind,string in enumerate(all_left_positions):
             all_left_positions[ind] = remove_comma_from_string(string)
 
-        pattern = re.compile(r"[\[]x positions_Right[\]] \: [\[](.*)[\]]")
+        pattern = re.compile(r"[\[]x positions right[\]] \: [\[](.*)[\]]")
         all_right_positions = pattern.findall(im_info)
         all_right_positions = all_right_positions[0].split()
         for ind,string in enumerate(all_right_positions):
@@ -183,6 +183,7 @@ def matchLR_to_xml(working_folder,left_file,right_file):
         size_left = left_tif.pages[0].shape
         page_num_left = len(left_tif.pages)
 
+    os.chdir(working_folder)
     dest_folder = ["right_rot","left_rot"]
     os.mkdir(dest_folder[0])
     os.mkdir(dest_folder[1])
