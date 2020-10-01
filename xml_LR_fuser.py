@@ -141,8 +141,15 @@ def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folde
 # part 1: modify images according to meta files
 # 1) rotates both images 90 degree
 # 2) remove overlapped pixels to make both dimensions identical
+def multiproc(Pool_input_right,Pool_input_left):
+    core_no = multiprocessing.cpu_count()-1
+    Pool = multiprocessing.Pool(processes= core_no)
+    im_shape = Pool.starmap(save2_2D,Pool_input_right)
+    im_shape = Pool.starmap(save2_2D,Pool_input_left)
+    Pool.close()
+    return im_shape
 
-def matchLR_to_xml(metafile,working_folder,left_file,right_file):
+def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,DV):
 
     t_start = time.time()
 
@@ -174,14 +181,14 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file):
         all_right_positions = all_right_positions[0].split()
         for ind,string in enumerate(all_right_positions):
             all_right_positions[ind] = remove_comma_from_string(string)
-
+            
     with TFF.TiffFile(right_file) as right_tif:
         size_right = right_tif.pages[0].shape
-        page_num_right = len(right_tif.pages)
+        page_num_right = int(round(len(right_tif.pages)))
 
     with TFF.TiffFile(left_file) as left_tif:
         size_left = left_tif.pages[0].shape
-        page_num_left = len(left_tif.pages)
+        page_num_left = int(round(len(left_tif.pages)))
 
     os.chdir(working_folder)
     dest_folder = ["right_rot","left_rot"]
@@ -214,90 +221,113 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file):
     print(("overlap_offset_L:%d,overlap_offset_R:%d,")%(overlap_offset_L,overlap_offset_R))
         
     # finding upper and lower 0 lines
-    left_cutting_pixel = finding_index_for_zero(left_file, page_num_left, "left",removed_x) # should be a number closer to 0
-    right_cutting_pixel = finding_index_for_zero(right_file, page_num_right, "right",removed_x) # should be a number closer to size_right
-    y_diff = size_left[0]-size_right[0]
-    x_diff = (size_left[1]-1 -left_cutting_pixel- overlap_offset_L)-(right_cutting_pixel-overlap_offset_R)
+    if is_main_channel == True:
+        left_cutting_pixel = finding_index_for_zero(left_file, page_num_left, "left",removed_x) # should be a number closer to 0
+        right_cutting_pixel = finding_index_for_zero(right_file, page_num_right, "right",removed_x) # should be a number closer to size_right
+        y_diff = size_left[0]-size_right[0]
+        x_diff = (size_left[1]-1 -left_cutting_pixel- overlap_offset_L)-(right_cutting_pixel-overlap_offset_R)
+    else:
+        with open(metafile,"r") as meta:
+            im_info = meta.read()
+            string = DV + " left cutting pixel"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            left_cutting_pixel = get_value(pattern,im_info)
+            string = DV + " right cutting pixel"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            right_cutting_pixel = get_value(pattern,im_info)
+            string = DV + " left overlap"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            overlap_offset_L = get_value(pattern,im_info)
+            string = DV + " right overlap"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            overlap_offset_R = get_value(pattern,im_info)
+            string = DV + " LR pixel difference in x"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            x_diff = get_value(pattern,im_info)
+            string = DV + " LR pixel difference in y"
+            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            y_diff = get_value(pattern,im_info)
     #x_diff = (left_cutting_pixel-overlap_offset_L)-(size_right[1]-overlap_offset_R-right_cutting_pixel)
     print(("left_cutting_pixel:%d,right_cutting_pixel:%d,")%(left_cutting_pixel,right_cutting_pixel))
     print(("x_diff:%d,y_diff:%d,")%(x_diff,y_diff))
     
-    core_no = multiprocessing.cpu_count()-1
-    print(core_no)
     Pool_input_right = [(n,right_file,overlap_offset_R,right_cutting_pixel,x_diff,y_diff,"Right",dest_folder[0],removed_x) for n in range(page_num_right)]
     Pool_input_left = [(n,left_file,overlap_offset_L,left_cutting_pixel,x_diff,y_diff,"Left",dest_folder[1],removed_x) for n in range(page_num_left)]
-    Pool = multiprocessing.Pool(processes= core_no)
-    im_shape = Pool.starmap(save2_2D,Pool_input_right)
-    im_shape = Pool.starmap(save2_2D,Pool_input_left)
-    Pool.close()
+
+    im_shape = multiproc(Pool_input_right,Pool_input_left)
 
     t_end = time.time()
     print("%.2f"%(t_end-t_start))
+
+    if is_main_channel == True:    
+        # part 2: generate the xml file
+        # magic number zone #
+        '''
+        reference refering is like transpose. ref1 indicates the V in terastitcher
+        ref2 indicates H, ref3 indicates D. 1,2,3 is the 3 dimension indicators in your images.
+        The follwing assigment tells the code to map the coordinates of your system to terastitcher
+        the minus sign indicates that the tile will be aligned/stitched in the reverse order of the index
+        ''' 
+        ref1 = 1
+        ref2 = 2
+        ref3 = 3
+
+        ori_V = 0 # unit: mm
+        ori_H = 0
+        ori_D = 0
+
+        bit = 16
+        ###########
+        dim_V = pixel_size_y
+        dim_H = pixel_size_x
+        dim_D = z_stepsize
+
+        xml_name = "terastitcher_for_LR.xml"
+
+        slice_no = [len(right_tif.pages),len(left_tif.pages)]
         
-    # part 2: generate the xml file
-    # magic number zone #
-    '''
-    reference refering is like transpose. ref1 indicates the V in terastitcher
-    ref2 indicates H, ref3 indicates D. 1,2,3 is the 3 dimension indicators in your images.
-    The follwing assigment tells the code to map the coordinates of your system to terastitcher
-    the minus sign indicates that the tile will be aligned/stitched in the reverse order of the index
-    ''' 
-    ref1 = 1
-    ref2 = 2
-    ref3 = 3
+        shift_no = [1, (im_shape[0][0]-0.2*x_pixels)*pixel_size_x]
+        offset_H = 0
+        offset_V = shift_no[1]
 
-    ori_V = 0 # unit: mm
-    ori_H = 0
-    ori_D = 0
-
-    bit = 16
-    ###########
-    dim_V = pixel_size_y
-    dim_H = pixel_size_x
-    dim_D = z_stepsize
-
-    xml_name = "terastitcher_for_LR.xml"
-
-    slice_no = [len(right_tif.pages),len(left_tif.pages)]
-    
-    shift_no = [1, (im_shape[0][0]-0.2*x_pixels)*pixel_size_x]
-    offset_H = 0
-    offset_V = shift_no[1]
-
-    with open(xml_name,'w') as xml_file:
-        xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
-        xml_file.write("<!DOCTYPE TeraStitcher SYSTEM \"TeraStitcher.DTD\">\n")
-        xml_file.write("<TeraStitcher volume_format=\"TiledXY|2Dseries\" input_plugin=\"tiff2D\">\n")
-        xml_file.write("    <stacks_dir value=\"%s\" />\n"%(working_folder))
-        xml_file.write("    <ref_sys ref1=\"%d\" ref2=\"%d\" ref3=\"%d\" />\n"%(ref1,ref2,ref3))
-        xml_file.write("    <voxel_dims V=\"%.2f\" H=\"%.2f\" D=\"%.2f\" />\n"%(dim_V,dim_H,dim_D))
-        xml_file.write("    <origin V=\"%.3f\" H=\"%.3f\" D=\"%.3f\" />\n"%(ori_V,ori_H,ori_D))
-        xml_file.write("    <mechanical_displacements V=\"%.2f\" H=\"%.2f\" />\n"%(offset_V,offset_H))
-        xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(2,1,max(slice_no)))
-        xml_file.write("    <STACKS>\n")
+        with open(xml_name,'w') as xml_file:
+            xml_file.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
+            xml_file.write("<!DOCTYPE TeraStitcher SYSTEM \"TeraStitcher.DTD\">\n")
+            xml_file.write("<TeraStitcher volume_format=\"TiledXY|2Dseries\" input_plugin=\"tiff2D\">\n")
+            xml_file.write("    <stacks_dir value=\"%s\" />\n"%(working_folder))
+            xml_file.write("    <ref_sys ref1=\"%d\" ref2=\"%d\" ref3=\"%d\" />\n"%(ref1,ref2,ref3))
+            xml_file.write("    <voxel_dims V=\"%.2f\" H=\"%.2f\" D=\"%.2f\" />\n"%(dim_V,dim_H,dim_D))
+            xml_file.write("    <origin V=\"%.3f\" H=\"%.3f\" D=\"%.3f\" />\n"%(ori_V,ori_H,ori_D))
+            xml_file.write("    <mechanical_displacements V=\"%.2f\" H=\"%.2f\" />\n"%(offset_V,offset_H))
+            xml_file.write("    <dimensions stack_rows=\"%d\" stack_columns=\"%d\" stack_slices=\"%d\" />\n"%(2,1,max(slice_no)))
+            xml_file.write("    <STACKS>\n")
+            
+            for n in range(len(dest_folder)):
+                xml_file.write("        <Stack N_CHANS=\"1\"")
+                xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
+                    
+                xml_file.write(" ROW=\"%d\""%(n))
+                xml_file.write(" COL=\"%d\""%(0))   
+                xml_file.write(" ABS_H=\"%.1f\""%(1))
+                xml_file.write(" ABS_V=\"%.1f\""%(shift_no[n]))
+                    
+                xml_file.write(" ABS_D=\"0\"")
+                xml_file.write(" STITCHABLE=\"yes\"")
+                xml_file.write(" DIR_NAME=\"%s\""%(dest_folder[n]))
+                xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n]))
+                xml_file.write(" IMG_REGEX=\"%s\">\n"%("image_\d+.tif"))
+                    
+                xml_file.write("            <NORTH_displacements/>\n")
+                xml_file.write("            <EAST_displacements/>\n")
+                xml_file.write("            <SOUTH_displacements/>\n")
+                xml_file.write("            <WEST_displacements/>\n")
+                xml_file.write("        </Stack>\n")
+            xml_file.write("    </STACKS>\n")
+            xml_file.write("</TeraStitcher>\n")
         
-        for n in range(len(dest_folder)):
-            xml_file.write("        <Stack N_CHANS=\"1\"")
-            xml_file.write(" N_BYTESxCHAN=\"%d\""%(bit/8))
-                
-            xml_file.write(" ROW=\"%d\""%(n))
-            xml_file.write(" COL=\"%d\""%(0))   
-            xml_file.write(" ABS_H=\"%.1f\""%(1))
-            xml_file.write(" ABS_V=\"%.1f\""%(shift_no[n]))
-                
-            xml_file.write(" ABS_D=\"0\"")
-            xml_file.write(" STITCHABLE=\"yes\"")
-            xml_file.write(" DIR_NAME=\"%s\""%(dest_folder[n]))
-            xml_file.write(" Z_RANGES=\"[0,%d)\""%(slice_no[n]))
-            xml_file.write(" IMG_REGEX=\"%s\">\n"%("image_\d+.tif"))
-                
-            xml_file.write("            <NORTH_displacements/>\n")
-            xml_file.write("            <EAST_displacements/>\n")
-            xml_file.write("            <SOUTH_displacements/>\n")
-            xml_file.write("            <WEST_displacements/>\n")
-            xml_file.write("        </Stack>\n")
-        xml_file.write("    </STACKS>\n")
-        xml_file.write("</TeraStitcher>\n")
+        return [left_cutting_pixel,right_cutting_pixel,overlap_offset_L,overlap_offset_R,x_diff,y_diff]
+    else:
+        return False
 
 if __name__ == "__main__":
     root =  tk.Tk()
@@ -306,6 +336,7 @@ if __name__ == "__main__":
     working_folder = filedialog.askdirectory(title = "selecting the working folder for storing stitched data")
     os.chdir(working_folder)
 
+    meta_file = filedialog.askopenfilename(title = "select the meta file")
     left_file = filedialog.askopenfilename(title = "select the left image")
     right_file = filedialog.askopenfilename(title = "select the right image")
-    matchLR_to_xml(working_folder,left_file,right_file)
+    matchLR_to_xml(meta_file,working_folder,left_file,right_file,True,"ventral")

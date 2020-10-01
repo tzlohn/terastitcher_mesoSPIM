@@ -74,7 +74,8 @@ def sortLR(working_folder):
                     n=n+1
             
                 pattern = re.compile(r"[\[]is\sscanned[\]] (\w+)")
-                is_scanned = pattern.findall(image_info)    
+                is_scanned = pattern.findall(image_info)
+                is_scanned = is_scanned[0]    
             
             dim_size = tuple(dim_size)
 
