@@ -7,18 +7,19 @@ import xml_LR_fuser
 import sys,os,re,shutil,glob
 
 def find_key_from_meta(all_line_string,key):
+    print(key)
     a_line = "nothing should be the same"
     n = -1
     while a_line == "nothing should be the same" and n < len(all_line_string):
         n = n+1
         current_str = all_line_string[n]
-        pattern = re.compile(r"[\[](%s)[\]] \: (.*)?\n"%key)
+        pattern = re.compile(r"[\[](%s)[\]]( \:)? (.*)?\n"%key)
         a_line_all = pattern.findall(current_str)
         if not a_line_all:
             a_line = "nothing should be the same"
         else: 
             a_line = a_line_all[0][0]
-            value = a_line_all[0][1]
+            value = a_line_all[0][-1]
     
     if not value:
         return [n,"not_a_value"] 
@@ -153,12 +154,12 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         if self.parent.pars_channelTab.is_main_channel:
             run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries")
             output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
-            key = self.parent.DV + " merged image"
+            key = self.parent.channelTab.channel + " " + self.parent.DV + " merged image"
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
         else:
             with open(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
                 im_info = meta.readlines()
-                key = self.parent.DV + " XY merged" 
+                key = self.parent.channelTab.channel + " " + self.parent.DV + " XY merged" 
                 [sn,xml_file] = find_key_from_meta(im_info,key)
                 current_xml = shutil.copy(xml_file,self.merge_folder)
                 xml_edit_directory(current_xml,self.merge_folder)
@@ -172,7 +173,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         self.unstitchedFileLabel=QtWidgets.QLabel("Unstitched file location")
         self.unstitchedFileLabel.setMaximumHeight(15)
         self.unstitchedFileLocation = QtWidgets.QLineEdit(self)
-        key = parent.DV + " " + side + " file"
+        key = self.parent.pars_channelTab.channel + " " +parent.DV + " " + side + " file"
         file_location = get_text_from_meta(parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key)
         if file_location != "Not assigned":
             self.unstitchedFileLocation.setText(file_location)
@@ -210,7 +211,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
             for key in meta_data.keys():
                 edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
-            meta_key = self.parent.DV + " " + self.side + " stitched"
+            meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
             xml_location = FileLocation + "/xml_merging.xml"
@@ -319,7 +320,8 @@ class DVTab(QtWidgets.QWidget):
         self.current_line = self.DV + " raw file"
         self.file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
         if self.file_location != "Not assigned":
-            self.file_location = self.file_location + "/"+parent.channel
+            channel_name = parent.channel
+            self.file_location = self.file_location + "/"+channel_name
             self.RawFileLocation.setText(self.file_location)
         
         self.LeftBox = LR_GroupBox(self,side = "left")
@@ -367,8 +369,8 @@ class DVTab(QtWidgets.QWidget):
 
     def splitLR(self):
         sortLR(self.file_location)
-        key_left = self.DV+" left file"
-        key_right = self.DV+" right file"
+        key_left = self.pars_channelTab.channel + " " + self.DV+" left file"
+        key_right = self.pars_channelTab.channel + " " + self.DV+" right file"
         self.left_location = self.file_location + "/Left"
         self.right_location = self.file_location + "/Right"
         edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key_left,self.left_location)
@@ -410,12 +412,13 @@ class MainWindow(QtWidgets.QMainWindow):
         #channel_folders = ["channel_647"]
         with open(parent.metaFile,"r") as meta:
             im_info = meta.read()
-            pattern = re.compile(r"[\[]channels[\]] \: [\[](.*)[\]]")
-            channel_folders = pattern.findall(im_info)
-            channel_folders = channel_folders[0].split()
-            if len(channel_folders) != 1:
-                for ind,string in enumerate(channel_folders):
-                    channel_folders[ind] = xml_LR_fuser.remove_comma_from_string(string)
+            pattern = re.compile(r"[\[]channels[\]] \: [\[]\'(channel_\d+)\',\s\'(channel_\d+)\',\s\'(channel_\d+)\'[\]]")
+            found_folders = pattern.findall(im_info)
+            found_folders = found_folders[0]
+            if len(found_folders) != 1:
+                channel_folders = []
+                for string in found_folders:
+                    channel_folders.append(string)
             
         main_channel = get_text_from_meta(parent.metaFile,"main channel")
 
@@ -479,7 +482,7 @@ class InitWindow(QtWidgets.QWidget):
     def getParameters(self):
         self.side = self.askSideWidget.currentText()
         self.filename = self.askFilename.text()
-        self.metaFile = self.prepare_meta(self.filename)
+        self.metaFile = self.prepare_meta(self.filename,self.channel_folder)
         self.metaFile = self.DataFolder+"/"+self.metaFile
         if self.side == "ventral":
             edit_meta(self.metaFile,"ventral raw file",self.DataFolder)
@@ -498,7 +501,7 @@ class InitWindow(QtWidgets.QWidget):
         return channel_folder
         
     def popupMain(self):
-        metaFileName = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open a existed project")
+        metaFileName = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open an existed project")
         cwd = os.getcwd()
         self.metaFile = os.path.join(cwd,metaFileName[0])
         self.mainWindow = MainWindow(self)    
@@ -514,7 +517,7 @@ class InitWindow(QtWidgets.QWidget):
         """
         self.mainWindow.show()
 
-    def prepare_meta(self,filename):
+    def prepare_meta(self,filename,channel_folder):
         meta_name = filename + "_meta.txt"
         with open(meta_name,"w") as meta:
             meta.write("[channels] : \n")
@@ -542,17 +545,18 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
-            meta.write("[ventral left file] : Not assigned\n")
-            meta.write("[ventral right file] : Not assigned\n")
-            meta.write("[ventral left stitched] : Not assigned\n")
-            meta.write("[ventral right stitched] : Not assigned\n")
-            meta.write("[ventral merged image] : Not assinged\n")
             meta.write("[dorsal raw file] : Not assigned\n")
-            meta.write("[dorsal left file] : Not assigned\n")
-            meta.write("[dorsal right file] : Not assigned\n")
-            meta.write("[dorsal left stitched] : Not assigned\n")
-            meta.write("[dorsal right stitched] : Not assigned\n")
-            meta.write("[dorsal merged image] : Not assinged\n")
+            for a_folder in channel_folder:               
+                meta.write("[%s ventral left file] : Not assigned\n"%a_folder)
+                meta.write("[%s ventral right file] : Not assigned\n"%a_folder)
+                meta.write("[%s ventral left stitched] : Not assigned\n"%a_folder)
+                meta.write("[%s ventral right stitched] : Not assigned\n"%a_folder)
+                meta.write("[%s ventral merged image] : Not assinged\n"%a_folder)
+                meta.write("[%s dorsal left file] : Not assigned\n"%a_folder)
+                meta.write("[%s dorsal right file] : Not assigned\n"%a_folder)
+                meta.write("[%s dorsal left stitched] : Not assigned\n"%a_folder)
+                meta.write("[%s dorsal right stitched] : Not assigned\n"%a_folder)
+                meta.write("[%s dorsal merged image] : Not assinged\n"%a_folder)
             meta.write("=== xml location === \n")
             meta.write("[ventral left XY] : Not assigned\n")
             meta.write("[ventral right XY] : Not assigned\n")
