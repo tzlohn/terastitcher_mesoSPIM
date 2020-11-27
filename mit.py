@@ -7,7 +7,6 @@ import xml_LR_fuser
 import sys,os,re,shutil,glob
 
 def find_key_from_meta(all_line_string,key):
-    print(key)
     a_line = "nothing should be the same"
     n = -1
     while a_line == "nothing should be the same" and n < len(all_line_string):
@@ -206,10 +205,13 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         os.chdir(FileLocation)
         [meta_data,self.merge_folder] = xml_XY(FileLocation)
         os.chdir(FileLocation)
-        os.mkdir("XY_stitched")
+        if not os.path.isdir("XY_stitched"):
+            os.mkdir("XY_stitched")
         if self.parent.pars_channelTab.is_main_channel:
             run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
             for key in meta_data.keys():
+                if key == "x positions "+self.side:
+                    key = self.parent.DV + " " + key
                 edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
@@ -528,8 +530,10 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[z step size (um)] : \n")
             meta.write("[pixel counts in x] : \n")
             meta.write("[pixel counts in y] : \n")
-            meta.write("[x positions right] : \n")
-            meta.write("[x positions left] : \n")
+            meta.write("[ventral x positions right] : \n")
+            meta.write("[ventral x positions left] : \n")
+            meta.write("[dorsal x positions right] : \n")
+            meta.write("[dorsal x positions left] : \n")
             meta.write("[ventral left cutting pixel] : \n")
             meta.write("[ventral right cutting pixel] : \n")
             meta.write("[ventral left overlap] : \n")

@@ -169,14 +169,16 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
 
         pattern = re.compile(r"[\[]z step size \(um\)[\]] \: (\d+)(\.)?(\d+)?")
         z_stepsize = get_value(pattern,im_info)
-
-        pattern = re.compile(r"[\[]x positions left[\]] \: [\[](.*)[\]]")
+        
+        x_pos_name = DV +" x positions left"
+        pattern = re.compile(r"[\[]%s[\]] \: [\[](.*)[\]]"%x_pos_name)
         all_left_positions = pattern.findall(im_info)
         all_left_positions = all_left_positions[0].split()
         for ind,string in enumerate(all_left_positions):
             all_left_positions[ind] = remove_comma_from_string(string)
 
-        pattern = re.compile(r"[\[]x positions right[\]] \: [\[](.*)[\]]")
+        x_pos_name = DV +" x positions right"
+        pattern = re.compile(r"[\[]%s[\]] \: [\[](.*)[\]]"%x_pos_name)
         all_right_positions = pattern.findall(im_info)
         all_right_positions = all_right_positions[0].split()
         for ind,string in enumerate(all_right_positions):
