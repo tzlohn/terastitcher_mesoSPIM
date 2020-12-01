@@ -104,16 +104,19 @@ def get_dim_match_image(im, x_diff,y_diff,side):
 def remove_comma_from_string(string):
     return string[0:len(string)-1]
 
-def find_0_pos(all_positions,image_size_x):
+def find_0_pos(all_positions,image_size_x,side):
     # this function tries to find out the part where the image contains 0
+    pos_with_0 = []
     for ind,a_position in enumerate(all_positions):
         pos = float(a_position)
         all_positions[ind] = pos
-        if abs(pos) > 0.5* image_size_x:
-            continue
-        else:
-            break
-    return pos
+        if abs(pos) <= 0.5* image_size_x:
+            pos_with_0.append(pos)
+
+    if side == "Left":
+        return max(pos_with_0)
+    elif side == "Right":
+        return min(pos_with_0)
 
 def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folder,removed_x):    
     img = TFF.TiffFile(imfile)
@@ -199,16 +202,17 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
 
     ## removing 80% of overlap
     image_size = pixel_size_x * x_pixels
-    pos = find_0_pos(all_left_positions,image_size)
+    pos_L = find_0_pos(all_left_positions,image_size,"Left")
+    pos_R = find_0_pos(all_right_positions,image_size,"Right")
 
     # only for the current file:TL200618
-    if pos != max(list(map(float,all_left_positions))):
+    if pos_L != max(list(map(float,all_left_positions))):
         removed_x = round(0.5*(size_left[1]-x_pixels))
     else:
         removed_x = 0
 
-    ratio_of_Right = abs(pos + 0.5*image_size)/image_size 
-    ratio_of_Left = abs(pos - 0.5*image_size)/image_size
+    ratio_of_Right = abs(pos_R + 0.5*image_size)/image_size 
+    ratio_of_Left = abs(pos_L - 0.5*image_size)/image_size
     if ratio_of_Right >0.9:
         # if one side has the ratio larger than 95%, the the other side will be totally discarded.
         overlap_offset_L = 0

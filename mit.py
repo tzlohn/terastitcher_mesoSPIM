@@ -5,8 +5,10 @@ from xml_XY_stitching import xml_XY
 from Transpose_then_save2D import trapoSave
 import xml_LR_fuser
 import sys,os,re,shutil,glob
+from psutil import virtual_memory
 
 def find_key_from_meta(all_line_string,key):
+    #print(key)
     a_line = "nothing should be the same"
     n = -1
     while a_line == "nothing should be the same" and n < len(all_line_string):
@@ -37,14 +39,23 @@ def edit_meta(metaFile,key,value):
         with open(metaFile,"w") as meta:
             meta.writelines(all_lines)
 
-def run_terastitcher(xmlname ,output_folder, volout_plugin, imout_format = "tif",is_onlymerge = False):    
+def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
         string = 'terastitcher --import --projin=\"' + xmlname + '\"'
         os.system(string)
+
+        mem = virtual_memory()
+        if not file_size == 0:
+            slice_no = mem.total*0.9/file_size//4
+            print(slice_no)
+
         if output_folder == "XY_stitched":
-            string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=200'
-        else:
+            string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=200'            
+        elif file_size == 0:
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
+        else:
+            string = 'terastitcher --displcompute --projin="xml_import.xml" --subvoldim=%d'%slice_no
+
         os.system(string)
         os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
         os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
@@ -133,8 +144,8 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.setLayout(self.layout)
         """
     def prep_LR_merge(self):
-        left_line = self.parent.DV + " left stitched"
-        right_line = self.parent.DV + " right stitched"
+        left_line = self.parent.pars_channelTab.channel + " " + self.parent.DV + " left stitched"
+        right_line = self.parent.pars_channelTab.channel + " " + self.parent.DV + " right stitched"
         self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
         self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
         #self.LR_mergeButton.setDisabled(False)
@@ -150,19 +161,23 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         key = self.parent.DV + " raw file"
         os.chdir(self.merge_folder)
         os.mkdir("merged")
+        os.chdir("right_rot")
+        tifnames = glob.glob("*.tif")
+        single_file_size = os.stat(tifnames[0]).st_size
+        os.chdir(self.merge_folder)
         if self.parent.pars_channelTab.is_main_channel:
-            run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries")
+            run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries",single_file_size)
             output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
-            key = self.parent.channelTab.channel + " " + self.parent.DV + " merged image"
+            key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " merged image"
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
         else:
             with open(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
                 im_info = meta.readlines()
-                key = self.parent.channelTab.channel + " " + self.parent.DV + " XY merged" 
+                key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " XY merged" 
                 [sn,xml_file] = find_key_from_meta(im_info,key)
                 current_xml = shutil.copy(xml_file,self.merge_folder)
                 xml_edit_directory(current_xml,self.merge_folder)
-            run_terastitcher(current_xml,"merged","TiledXY|3Dseries",is_onlymerge=True)            
+            run_terastitcher(current_xml,"merged","TiledXY|3Dseries",single_file_size,is_onlymerge=True)            
 
 class LR_GroupBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None, side = None):
@@ -211,8 +226,10 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
             for key in meta_data.keys():
                 if key == "x positions "+self.side:
-                    key = self.parent.DV + " " + key
-                edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, key, meta_data[key])
+                    input_key = self.parent.DV + " " + key
+                else:
+                    input_key = key
+                edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile, input_key, meta_data[key])
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
