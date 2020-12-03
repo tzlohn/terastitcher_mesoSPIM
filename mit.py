@@ -55,11 +55,15 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
         else:
             string = 'terastitcher --displcompute --projin="xml_import.xml" --subvoldim=%d'%slice_no
+        
+        if not os.path.exists("xml_displcomp.xml"):
+            os.system(string)
 
-        os.system(string)
-        os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
-        os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
-        os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
+        if not os.path.exists("xml_merging.xml"):
+            os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
+            os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
+            os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
+        
         string = 'terastitcher --merge --projin=\"xml_merging.xml\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
         os.system(string)
     else:
@@ -160,7 +164,8 @@ class LR_MergeBox(QtWidgets.QGroupBox):
     def LR_merge(self):
         key = self.parent.DV + " raw file"
         os.chdir(self.merge_folder)
-        os.mkdir("merged")
+        if not os.path.isdir("merged"):
+            os.mkdir("merged")
         os.chdir("right_rot")
         tifnames = glob.glob("*.tif")
         single_file_size = os.stat(tifnames[0]).st_size
@@ -281,6 +286,26 @@ class LR_GroupBox(QtWidgets.QGroupBox):
 class DVFusionTab(QtWidgets.QWidget):
     def __init__(self, parent = None, channel = None):
         super().__init__(parent)
+        self.parent = parent
+
+        self.selectDorsalText = QtWidgets.QLabel(parent = self, text = "Select the dorsal file if not assigned")
+        self.selectVentralText = QtWidgets.QLabel(parent = self, text = "Select the ventral file if not assigned")
+        self.DorsalFile = QtWidgets.QLineEdit(self)
+        self.dorsal_line = channel + " dorsal merged image"
+        self.Dorsal_location = get_text_from_meta(self.parent.pars_mainWindow.pars_initWindow.metaFile,self.dorsal_line)
+        if self.Dorsal_location != "Not assigned":
+            self.DorsalFile.setText(self.Dorsal_location)
+        self.ventral_line = channel + " ventral merged image"
+        self.Ventral_location = get_text_from_meta(self.parent.pars_mainWindow.pars_initWindow.metaFile,self.ventral_line)
+        self.VentralFile = QtWidgets.QLineEdit(self)
+        if self.Ventral_location != "Not assigned":
+            self.VentralFile.setText(self.Ventral_location)
+        self.selectDorsal = QtWidgets.QPushButton(self)
+        self.selectDorsal.setText("Browse...")
+        self.selectDorsal.clicked.connect(lambda :self.askdirectory(self.DorsalFile))
+        self.selectVentral = QtWidgets.QPushButton(self)
+        self.selectVentral.setText("Browse...")
+        self.selectVentral.clicked.connect(lambda :self.askdirectory(self.VentralFile))
 
         self.transpose_in_2D = QtWidgets.QPushButton(self)
         self.transpose_in_2D.setText("pre-processing the image")
@@ -305,18 +330,29 @@ class DVFusionTab(QtWidgets.QWidget):
         self.fuse_DV.clicked.connect(self.DV_fusion)
 
         self.layout = QtWidgets.QGridLayout(self)
-        self.layout.addWidget(self.transpose_in_2D, 0,0,1,4)
-        self.layout.addWidget(self.open_image_folders, 1,0,1,4)
-        self.layout.addWidget(self.label_WidthShift,2,0,1,3)
-        self.layout.addWidget(self.shift_in_Width,2,0,3,1)
-        self.layout.addWidget(self.label_HeightShift,3,0,1,3)
-        self.layout.addWidget(self.shift_in_Height,3,0,3,1)
-        self.layout.addWidget(self.generate_DV_xml,4,0,1,4)
-        self.layout.addWidget(self.fuse_DV,5,0,1,4)
-        self.setLayout(self.layout)        
+        self.layout.addWidget(self.selectDorsalText, 0,0,1,3)
+        self.layout.addWidget(self.DorsalFile,1,0,1,4)
+        self.layout.addWidget(self.selectDorsal,0,3,1,1)
+        self.layout.addWidget(self.selectVentralText, 2,0,1,3)
+        self.layout.addWidget(self.VentralFile,3,0,1,4)
+        self.layout.addWidget(self.selectVentral,2,3,1,1)
+        self.layout.addWidget(self.transpose_in_2D, 5,0,1,2)
+        self.layout.addWidget(self.open_image_folders, 5,2,1,2)
+        self.layout.addWidget(self.label_WidthShift,6,0,1,2)
+        self.layout.addWidget(self.shift_in_Width,7,0,1,2)
+        self.layout.addWidget(self.label_HeightShift,6,2,1,2)
+        self.layout.addWidget(self.shift_in_Height,7,2,1,2)
+        self.layout.addWidget(self.generate_DV_xml,8,0,1,4)
+        self.layout.addWidget(self.fuse_DV,9,0,1,4)
+        self.setLayout(self.layout)
+
+    def askdirectory(self,SideFileWidget):
+        self.file_location = QtWidgets.QFileDialog.getExistingDirectory(self)
+        SideFileWidget.setText(self.file_location)         
 
     def transpose_then_save(self):
-        trapoSave()
+        self.DV_folder = QtWidgets.QFileDialog.setDirectory(self)
+        trapoSave(self.VentralFile.text(),self.VentralDorsal.text(),self.DV_folder)
     
     def open_folders(self):
         pass
