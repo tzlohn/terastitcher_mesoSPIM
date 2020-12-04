@@ -175,10 +175,12 @@ class LR_MergeBox(QtWidgets.QGroupBox):
             output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
             key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " merged image"
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
+            key = self.parent.DV + " LR merged"
+            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,self.merge_folder+"/xml_merging.xml")
         else:
             with open(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
                 im_info = meta.readlines()
-                key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " XY merged" 
+                key = self.parent.DV + " LR merged" 
                 [sn,xml_file] = find_key_from_meta(im_info,key)
                 current_xml = shutil.copy(xml_file,self.merge_folder)
                 xml_edit_directory(current_xml,self.merge_folder)
@@ -315,10 +317,10 @@ class DVFusionTab(QtWidgets.QWidget):
         self.open_image_folders.setText("open the folders containing images")
         self.open_image_folders.clicked.connect(self.open_folders)
 
-        self.label_WidthShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in width in the image:")
+        self.label_WidthShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in width:")
         self.shift_in_Width = QtWidgets.QLineEdit(self)
 
-        self.label_HeightShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in height in the image:")
+        self.label_HeightShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in height:")
         self.shift_in_Height = QtWidgets.QLineEdit(self)
 
         self.generate_DV_xml = QtWidgets.QPushButton(self)
@@ -339,8 +341,8 @@ class DVFusionTab(QtWidgets.QWidget):
         self.layout.addWidget(self.transpose_in_2D, 5,0,1,2)
         self.layout.addWidget(self.open_image_folders, 5,2,1,2)
         self.layout.addWidget(self.label_WidthShift,6,0,1,2)
-        self.layout.addWidget(self.shift_in_Width,7,0,1,2)
-        self.layout.addWidget(self.label_HeightShift,6,2,1,2)
+        self.layout.addWidget(self.shift_in_Width,6,2,1,2)
+        self.layout.addWidget(self.label_HeightShift,7,0,1,2)
         self.layout.addWidget(self.shift_in_Height,7,2,1,2)
         self.layout.addWidget(self.generate_DV_xml,8,0,1,4)
         self.layout.addWidget(self.fuse_DV,9,0,1,4)
@@ -351,8 +353,9 @@ class DVFusionTab(QtWidgets.QWidget):
         SideFileWidget.setText(self.file_location)         
 
     def transpose_then_save(self):
-        self.DV_folder = QtWidgets.QFileDialog.setDirectory(self)
-        trapoSave(self.VentralFile.text(),self.VentralDorsal.text(),self.DV_folder)
+        self.DV_folder = QtWidgets.QFileDialog.getExistingDirectory(self)
+        os.chdir(self.DV_folder)
+        trapoSave(self.VentralFile.text(),self.DorsalFile.text(),self.DV_folder)
     
     def open_folders(self):
         pass
@@ -485,7 +488,7 @@ class MainWindow(QtWidgets.QMainWindow):
             n = n+1                
                 
         print(self.channel_tabs)
-        self.channel_tabs.resize(600,450)
+        self.channel_tabs.resize(600,550)
 
 class InitWindow(QtWidgets.QWidget):
     def __init__(self):
@@ -617,10 +620,10 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("=== xml location === \n")
             meta.write("[ventral left XY] : Not assigned\n")
             meta.write("[ventral right XY] : Not assigned\n")
-            meta.write("[ventral XY merged] : Not assigned\n")
+            meta.write("[ventral LR merged] : Not assigned\n")
             meta.write("[dorsal left XY] : Not assigned\n")
             meta.write("[dorsal right XY] : Not assigned\n")
-            meta.write("[dorsal XY merged] : Not assigned\n")
+            meta.write("[dorsal LR merged] : Not assigned\n")
             meta.write("[dorsal ventral fusion] : Not assigned\n")
 
         return meta_name
