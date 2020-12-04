@@ -69,7 +69,27 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
         
     if n + LoadedPagesNo < ori_z_layers :
         # when this if statement is satisfied, images can be loaded fully without worrying out of index 
-        an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
+        try:
+            if n == 270:
+                print("270")
+            an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
+        except:
+            for p in range(LoadedPagesNo):
+                a_slice = TFF.imread(filename, key = n+p)
+                if isinstance(a_slice,np.ndarray):
+                    if p == 0:
+                        an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
+                    an_image[p,:,:] = a_slice
+                else:
+                    if p == 0:
+                        q = 1;
+                        while not isinstance(a_slice,np.ndarray):
+                            a_slice = TFF.imread(filename, key = n+p+q)
+                            q=q+1
+                        an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
+                        an_image[p,:,:] = a_slice
+                    else:
+                        an_image[p,:,:] = an_image[p-1,:,:]    
     else:
         an_image = TFF.imread(filename, key = range(n,ori_z_layers-1))
     
