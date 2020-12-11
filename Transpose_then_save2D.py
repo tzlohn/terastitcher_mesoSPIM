@@ -62,52 +62,12 @@ def find_image_edge(img_file):
 def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
     # new_shape is a transposed shape
     # n is the serial number of the first page to be loaded.
+
     with TFF.TiffFile(filename) as tif:
         ori_z_layers = len(tif.pages)
 
     diff = new_shape[2] - ori_z_layers
-        
-    if n + LoadedPagesNo < ori_z_layers :
-        # when this if statement is satisfied, images can be loaded fully without worrying out of index 
-        try:
-            if n == 270:
-                print("270")
-            an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
-        except:
-            for p in range(LoadedPagesNo):
-                a_slice = TFF.imread(filename, key = n+p)
-                if isinstance(a_slice,np.ndarray):
-                    if p == 0:
-                        an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
-                    an_image[p,:,:] = a_slice
-                else:
-                    if p == 0:
-                        q = 1;
-                        while not isinstance(a_slice,np.ndarray):
-                            a_slice = TFF.imread(filename, key = n+p+q)
-                            q=q+1
-                        an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
-                        an_image[p,:,:] = a_slice
-                    else:
-                        an_image[p,:,:] = an_image[p-1,:,:]    
-    else:
-        an_image = TFF.imread(filename, key = range(n,ori_z_layers-1))
     
-    if len(an_image.shape) == 2:
-        an_image = an_image[edge_index[0]:edge_index[1],edge_index[2]:edge_index[3]]
-        an_image = an_image[np.newaxis,...]
-    else:    
-        an_image = an_image[:,edge_index[0]:edge_index[1],edge_index[2]:edge_index[3]]
-
-    if isdorsal:
-        an_image = np.flip(an_image,axis = 1)
-
-    # create a zero matrix for filling to match the size of both images
-    if an_image.shape[1] < new_shape[1]:
-        filling_shape = (an_image.shape[0], new_shape[1]-an_image.shape[1], an_image.shape[2])
-        filling_image = np.zeros(filling_shape,dtype = 'uint16')
-        an_image = np.concatenate([an_image,filling_image], axis = 1)     
-    an_image = an_image.transpose(2,1,0)
     if diff > 0 and not isdorsal:        
         str_n = str(n+diff)
     else:
@@ -115,60 +75,127 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
     digit_diff = len(str(new_shape[1])) - len(str_n)
     str_n = "0"*digit_diff + str_n
     temp_img_name = "temp_" + str_n + ".tif"
-    TFF.imwrite(temp_img_name, an_image, bigtiff = True)
-    return True
 
-def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):  
+    if not os.path.exists(temp_img_name):
+        if n + LoadedPagesNo < ori_z_layers :
+            # when this if statement is satisfied, images can be loaded fully without worrying out of index 
+            try:
+                an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
+            except:
+                for p in range(LoadedPagesNo):
+                    a_slice = TFF.imread(filename, key = n+p)
+                    if isinstance(a_slice,np.ndarray):
+                        if p == 0:
+                            an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
+                        an_image[p,:,:] = a_slice
+                    else:
+                        """
+                        root = tk.Tk()
+                        root.withdraw()
+                        if isdorsal:
+                            side = "dorsal"
+                        else:
+                            side = "ventral"
+                        Loaded_image_name = filedialog.askopenfilename(title = "Please save frame %d from %s side as a single image, and load it by selecting it here."%(p+n,side))
+                        a_slice = TFF.imread(Loaded_image_name)
+                        """
+                        pre_image = TFF.imread(filename, key = n+p-1)
+                        post_image = TFF.imread(filename, key = n+p+1)
+                        a_slice = (pre_image+post_image)/2
+                        if p == 0:
+                            an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
+                        an_image[p,:,:] = a_slice
+                            
+        else:
+            an_image = TFF.imread(filename, key = range(n,ori_z_layers-1))
+        
+        if len(an_image.shape) == 2:
+            an_image = an_image[edge_index[0]:edge_index[1],edge_index[2]:edge_index[3]]
+            an_image = an_image[np.newaxis,...]
+        else:    
+            an_image = an_image[:,edge_index[0]:edge_index[1],edge_index[2]:edge_index[3]]
+
+        if isdorsal:
+            an_image = np.flip(an_image,axis = 1)
+
+        # create a zero matrix for filling to match the size of both images
+        if an_image.shape[1] < new_shape[1]:
+            filling_shape = (an_image.shape[0], new_shape[1]-an_image.shape[1], an_image.shape[2])
+            filling_image = np.zeros(filling_shape,dtype = 'uint16')
+            an_image = np.concatenate([an_image,filling_image], axis = 1)     
+        an_image = an_image.transpose(2,1,0)
+        TFF.imwrite(temp_img_name, an_image, bigtiff = True)
+        return True
+    else:
+        return True        
+
+def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):      
     if n + x_layer_no < x_size:
         loading_range = range(n , n+x_layer_no)
     else:
         loading_range = range(n , x_size-1)
-    img = []
-    for tempname in temptifs_name:
-        tmpinfo = TFF.TiffFile(tempname)
-        if len(tmpinfo.pages) == 1:
-            """A very interesting bug: when interrogate it by Tifffile or Fiji, it detects a 2D image, 
-            but after reading as numpy, it recovers to be 3D"""
-            tmp = TFF.imread(tempname)
-            tmp = tmp[loading_range,:,:]
-        else:                  
-            tmp = TFF.imread(tempname, key = loading_range)
-        img.append(tmp)
 
-    img = np.concatenate(img, axis = 2)
+    GoOn = False
 
-    """
-    if isdorsal:
-        img = np.flip(img, axis = 1)
-    """
     for m in loading_range:
         str_m = str(m)
         digit_diff = len(str(x_size)) - len(str_m)
         str_m = "0"*digit_diff + str_m
-        img_name = "yz_" + str_m + ".tif"    
-        TFF.imwrite(img_name, img[m-n], bigtiff = True)
+        img_name = "yz_" + str_m + ".tif"
+        if not os.path.exists(img_name):
+            GoOn = True
+            break 
+    
+    if GoOn:
+        img = []
+        for tempname in temptifs_name:
+            tmpinfo = TFF.TiffFile(tempname)
+            if len(tmpinfo.pages) == 1:
+                """A very interesting bug: when interrogate it by Tifffile or Fiji, it detects a 2D image, 
+                but after reading as numpy, it recovers to be 3D"""
+                tmp = TFF.imread(tempname)
+                tmp = tmp[loading_range,:,:]
+            else:                  
+                tmp = TFF.imread(tempname, key = loading_range)
+            img.append(tmp)
+
+        img = np.concatenate(img, axis = 2)
+
+    
+        if isdorsal:
+            img = np.flip(img, axis = 0)
+        
+        for m in loading_range:
+            str_m = str(m)
+            digit_diff = len(str(x_size)) - len(str_m)
+            str_m = "0"*digit_diff + str_m
+            img_name = "yz_" + str_m + ".tif"    
+            TFF.imwrite(img_name, img[m-n], bigtiff = True)
 
 def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal):
     TFFim = TFF.TiffFile(filename)
-    diff = new_shape[1] - len(TFFim.pages) 
-    if diff > 0:
-        if not isdorsal:
-            Filling_SN = range(0,diff,LoadedPagesNo)
-        else:
-            Filling_SN = range(len(TFFim.pages),diff+len(TFFim.pages),LoadedPagesNo)
-        filling_shape_z = (new_shape[0]-1, new_shape[1], LoadedPagesNo)
-        filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
+    diff = new_shape[2] - len(TFFim.pages)
 
-        string_n = "0"*(len(str(new_shape[2])) - len(str(n)))+str(n)
-        temp_img_name = "temp_" + string_n + ".tif"
-        if n == Filling_SN[-1]:
+    string_n = "0"*(len(str(new_shape[2])) - len(str(n)))+str(n)
+    temp_img_name = "temp_" + string_n + ".tif" 
+    
+    if not os.path.exists(temp_img_name):
+        if diff > 0:
             if not isdorsal:
-                filling_shape_z = (new_shape[0]-1, new_shape[1], diff-n)
+                Filling_SN = range(0,diff,LoadedPagesNo)
             else:
-                filling_shape_z = (new_shape[0]-1, new_shape[1], new_shape[2]-n)
+                Filling_SN = range(len(TFFim.pages),diff+len(TFFim.pages),LoadedPagesNo)
+            
+            if n == Filling_SN[-1]:
+                if not isdorsal:
+                    filling_shape_z = (new_shape[0]-1, new_shape[1], diff-n)
+                else:
+                    filling_shape_z = (new_shape[0]-1, new_shape[1], new_shape[2]-n)        
+            else:
+                filling_shape_z = (new_shape[0]-1, new_shape[1], LoadedPagesNo)
             filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
-        
-        TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
+                    
+            TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
 
 def findLostFile(stepsize,tifpages,diff,isdorsal):
     tifname = glob.glob("*.tif")
@@ -223,52 +250,52 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
             Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
         else:
             Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
+        yzlist = glob.glob("yz*.tif")
+        if not yzlist:
+            Pool = multiprocessing.Pool(processes= core_no)
+            result = Pool.starmap(generate_zero_image_for_z,Pool_input)
+            Pool.close()
+    
+    yzlist = glob.glob("yz*.tif")
+    # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
+    if not yzlist:
+        # get chunks and transpose the axis to z,y,x
+        print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images") 
+        Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]   
         Pool = multiprocessing.Pool(processes= core_no)
-        result = Pool.starmap(generate_zero_image_for_z,Pool_input)
+        result = Pool.starmap(segmented_transpose,Pool_input)
+        #multiprocessing will sometimes skip some items in list, the following code find the lost items and get them.
+        lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)
+        Pool.close()
+        while(lost_list):
+            print("some skipped layers were found")
+            Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in lost_list]
+            result = Pool.starmap(segmented_transpose,Pool_input)
+            lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)    
         Pool.close()
     
-    # get chunks and transpose the axis to z,y,x
-    print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images") 
-    Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]   
-    Pool = multiprocessing.Pool(processes= core_no)
-    result = Pool.starmap(segmented_transpose,Pool_input)
-    #multiprocessing will sometimes skip some items in list, the following code find the lost items and get them.
-    lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)
-    while(lost_list):
-        print("some skipped layers were found")
-        Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in lost_list]
-        result = Pool.starmap(segmented_transpose,Pool_input)
-        lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)    
-    Pool.close()
-    
-    #segmented_transpose(2965,filename,LoadedPagesNo,edge_index,new_shape,isdorsal)
     ##recombine transposed chuncks and save to 2D images
     # get required parameters, and calculate the resources
     print("Step 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images")
-    temptifs = glob.glob("temp*.tif")
-    one_temptif_size = os.stat(temptifs[0]).st_size
-    one_x_layer_size = one_temptif_size/new_shape[0]
-    x_layer_no_to_load = int(round(ram_use/len(temptifs)/one_x_layer_size))
-    print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
+    yzlist = glob.glob("yz*.tif")
+    if len(yzlist) < new_shape[0]-1:
+        temptifs = glob.glob("temp*.tif")
+        one_temptif_size = os.stat(temptifs[0]).st_size
+        one_x_layer_size = one_temptif_size/new_shape[0]
+        x_layer_no_to_load = int(round(ram_use/len(temptifs)/one_x_layer_size))
+        print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
 
-    # divided the chunck and multiprocessing 
-    Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]    
-    Pool = multiprocessing.Pool(processes= core_no)
-    result = Pool.starmap(image_recombination,Pool_input)
-    Pool.close()
-    #image_recombination(536,temptifs,x_layer_no_to_load,new_shape[0],isdorsal)
+        # divided the chunck and multiprocessing 
+        Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]    
+        Pool = multiprocessing.Pool(processes= core_no)
+        result = Pool.starmap(image_recombination,Pool_input)
+        Pool.close()
+        #image_recombination(536,temptifs,x_layer_no_to_load,new_shape[0],isdorsal)
 
     t_end = time.time()
     print("%d"%(t_end-t_start))
 
 def trapoSave(ventral_file,dorsal_file,folderpath):
-    """
-    root = tk.Tk()
-    root.withdraw()
-
-    ventral_file = filedialog.askopenfilename(title = "select the ventral image")
-    dorsal_file = filedialog.askopenfilename(title = "select the dorsal image")
-    """
     edge_index_ventral = find_image_edge(ventral_file)
     edge_index_dorsal = find_image_edge(dorsal_file)
     print(edge_index_ventral)
@@ -292,10 +319,6 @@ def trapoSave(ventral_file,dorsal_file,folderpath):
     new_ventral_shape = [ventral_shape[2], ventral_shape[1],ventral_shape[0]]
     new_dorsal_shape = [dorsal_shape[2], dorsal_shape[1],dorsal_shape[0]]
 
-    """
-    folderpath = filedialog.askdirectory(title = "select the folder for storing converted data")
-    os.chdir(folderpath)
-    """
     # convert ventral part
     
     if not os.path.isdir("ventral_image"):
@@ -315,4 +338,12 @@ def trapoSave(ventral_file,dorsal_file,folderpath):
         os.remove(file)
 
 if __name__ == "__main__":
-    trapoSave()
+    root = tk.Tk()
+    root.withdraw()
+
+    ventral_file = filedialog.askopenfilename(title = "select the ventral image")
+    dorsal_file = filedialog.askopenfilename(title = "select the dorsal image")
+    folderpath = filedialog.askdirectory(title = "select the folder for storing converted data")
+    os.chdir(folderpath)
+
+    trapoSave(ventral_file,dorsal_file,folderpath)
