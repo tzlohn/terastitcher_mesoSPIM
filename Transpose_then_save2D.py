@@ -4,6 +4,7 @@ import time,os,glob,re
 from tkinter import filedialog
 import tkinter as tk
 import multiprocessing
+from psutil import virtual_memory
 
 def find_image_edge(img_file):
     img_info = TFF.TiffFile(img_file)
@@ -89,16 +90,6 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
                             an_image= np.zeros(shape=(LoadedPagesNo,a_slice.shape[0],a_slice.shape[1]),dtype = a_slice.dtype)
                         an_image[p,:,:] = a_slice
                     else:
-                        """
-                        root = tk.Tk()
-                        root.withdraw()
-                        if isdorsal:
-                            side = "dorsal"
-                        else:
-                            side = "ventral"
-                        Loaded_image_name = filedialog.askopenfilename(title = "Please save frame %d from %s side as a single image, and load it by selecting it here."%(p+n,side))
-                        a_slice = TFF.imread(Loaded_image_name)
-                        """
                         pre_image = TFF.imread(filename, key = n+p-1)
                         post_image = TFF.imread(filename, key = n+p+1)
                         a_slice = (pre_image+post_image)/2
@@ -220,10 +211,39 @@ def findLostFile(stepsize,tifpages,diff,isdorsal):
             p = p+1
     return returnlist
 
+def generateTempImg(layer,new_shape,x_layer):
+    x_size = new_shape[0]
+    str_m = str(layer)
+    digit_diff = len(str(x_size)) - len(str_m)
+    str_m = "0"*digit_diff + str_m
+    img_name = "yz_" + str_m + ".tif"
+    if not os.path.exists(img_name):
+        if layer + x_layer < new_shape[0]-1:    
+            TFF.imwrite(img_name, np.zeros(shape = (new_shape[1],new_shape[2]-1), dtype = "uint16"), bigtiff = True)
+        else:
+            TFF.imwrite(img_name, np.zeros(shape = (new_shape[0]-1-layer,new_shape[1],new_shape[2]-1), dtype = "uint16"), bigtiff = True)
+
+def image_reCombination(layer,SN,temptif,new_shape,x_temp_layers):
+
+    x_size = new_shape[0]        
+    str_m = str(layer)
+    digit_diff = len(str(x_size)) - len(str_m)
+    str_m = "0"*digit_diff + str_m
+    img_name = "yz_" + str_m + ".tif"
+    
+    img = TFF.imread(img_name)
+    #img[:,SN*temptif.shape[1]:(SN+1)*temptif.shape[1],:] = temptif[layer:layer+x_temp_layers-1,:,:]
+    if (SN+1)*temptif.shape[2] < img.shape[1] :
+        img[:,SN*temptif.shape[2]:(SN+1)*temptif.shape[2]] = temptif[layer,:,:]
+    else:
+        img[:,SN*temptif.shape[2]:-1] = temptif[layer,:,:]
+    TFF.imwrite(img_name,img)
+        
 def Save2Raw(filename,new_shape,edge_index,isdorsal):
 
     core_no = multiprocessing.cpu_count()-1
-    ram_use = 2e9
+    mem = virtual_memory()
+    ram_use = mem.total*0.5/core_no
 
     new_shape = tuple(new_shape)
 
@@ -237,7 +257,7 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
 
     BytesOnePage = byte * new_shape[0]*new_shape[1]
     # calculate the adequate number of pages to load
-    LoadedPagesNo = int(np.ceil(ram_use/BytesOnePage))
+    LoadedPagesNo = int(np.round(ram_use/BytesOnePage))
     print("%d pages were loaded at once for conversion"%LoadedPagesNo)
 
     t_start = time.time()
@@ -252,7 +272,12 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
             Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
         yzlist = glob.glob("yz*.tif")
         if not yzlist:
+            templist = glob.glob("temp*.tif")
             Pool = multiprocessing.Pool(processes= core_no)
+            if templist:                
+                tif = TFF.TiffFile(templist[0])
+                LoadedPagesNo = tif.pages[0].shape[0]
+                Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
             result = Pool.starmap(generate_zero_image_for_z,Pool_input)
             Pool.close()
     
@@ -261,8 +286,14 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
     if not yzlist:
         # get chunks and transpose the axis to z,y,x
         print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images") 
-        Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]   
+        templist = glob.glob("temp*.tif")
         Pool = multiprocessing.Pool(processes= core_no)
+        if not templist: 
+            Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]   
+        else:
+            tiftemp = TFF.TiffFile(templist[0])
+            LoadedPagesNo = tiftemp.pages[0].shape[1]
+            Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]     
         result = Pool.starmap(segmented_transpose,Pool_input)
         #multiprocessing will sometimes skip some items in list, the following code find the lost items and get them.
         lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)
@@ -282,16 +313,37 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal):
         temptifs = glob.glob("temp*.tif")
         one_temptif_size = os.stat(temptifs[0]).st_size
         one_x_layer_size = one_temptif_size/new_shape[0]
-        x_layer_no_to_load = int(round(ram_use/len(temptifs)/one_x_layer_size))
-        print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
+        x_temp_layers = int(round(ram_use/(core_no * byte * new_shape[1] * (new_shape[2]-1))))
+        #round(ram_use/len(temptifs)/one_x_layer_size))
+        print("%d layers were loaded at once for recombination"%x_temp_layers)
+        
+        #Pool_input = [(layer,new_shape,x_temp_layers) for layer in range(0,new_shape[0]-1,x_temp_layers)]
+        Pool_input = [(layer,new_shape,x_temp_layers) for layer in range(new_shape[0]-1)]
+        Pool = multiprocessing.Pool(processes= core_no)
+        result = Pool.starmap(generateTempImg,Pool_input)
+        Pool.close()
 
+        for SN,tempname in enumerate(temptifs):
+            tmpinfo = TFF.TiffFile(tempname)
+            #if len(tmpinfo.pages) == 1:
+            """A very interesting bug: when interrogate it by Tifffile or Fiji, it detects a 2D image, 
+            but after reading as numpy, it recovers to be 3D"""
+            tmp = TFF.imread(tempname)
+            print(SN*tmp.shape[2])        
+            
+            #Pool_input = [(layer,SN,tmp,new_shape,x_temp_layers) for layer in range(0,new_shape[0]-1,x_temp_layers)]
+            Pool_input = [(layer,SN,tmp,new_shape,x_temp_layers) for layer in range(new_shape[0]-1)]
+            Pool = multiprocessing.Pool(processes= core_no)
+            result = Pool.starmap(image_reCombination,Pool_input)
+            Pool.close()
+                
         # divided the chunck and multiprocessing 
+        """
         Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]    
         Pool = multiprocessing.Pool(processes= core_no)
         result = Pool.starmap(image_recombination,Pool_input)
         Pool.close()
-        #image_recombination(536,temptifs,x_layer_no_to_load,new_shape[0],isdorsal)
-
+        """
     t_end = time.time()
     print("%d"%(t_end-t_start))
 
