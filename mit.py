@@ -3,8 +3,9 @@ from Channel_sorting import sortChannel
 from LR_sorting import sortLR
 from xml_XY_stitching import xml_XY
 from Transpose_then_save2D import trapoSave
-import xml_LR_fuser
-import sys,os,re,shutil,glob
+import xml_LR_merge
+import xml_DV_fusion
+import sys,os,re,shutil,glob,time
 from psutil import virtual_memory
 
 def find_key_from_meta(all_line_string,key):
@@ -46,15 +47,16 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
 
         mem = virtual_memory()
         if not file_size == 0:
-            slice_no = mem.total*0.9/file_size//4
+            slice_no = mem.free*0.8/file_size//4
             print(slice_no)
+            time.sleep(5)
 
         if output_folder == "XY_stitched":
             string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=200'            
         elif file_size == 0:
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
         else:
-            string = 'terastitcher --displcompute --projin="xml_import.xml" --subvoldim=%d'%slice_no
+            string = 'terastitcher --displcompute --projin="xml_import.xml" --subvoldim=%d'%int(slice_no)
         
         if not os.path.exists("xml_displcomp.xml"):
             os.system(string)
@@ -129,7 +131,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None):
         super().__init__(parent)
         self.parent = parent
-        self.merge_folder = self.parent.file_location + "\LR_fusion"
+        self.merge_folder = self.parent.file_location + "/LR_fusion"
         self.LR_matchButton = QtWidgets.QPushButton(self)
         self.LR_matchButton.setText("match their dimension and generate xml")
         self.LR_matchButton.clicked.connect(self.prep_LR_merge)
@@ -153,7 +155,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
         self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
         #self.LR_mergeButton.setDisabled(False)
-        parameters = xml_LR_fuser.matchLR_to_xml\
+        parameters = xml_LR_merge.matchLR_to_xml\
             (self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV)
         if parameters != False:
             keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y" ]
@@ -289,6 +291,7 @@ class DVFusionTab(QtWidgets.QWidget):
     def __init__(self, parent = None, channel = None):
         super().__init__(parent)
         self.parent = parent
+        self.channel = channel
 
         self.selectDorsalText = QtWidgets.QLabel(parent = self, text = "Select the dorsal file if not assigned")
         self.selectVentralText = QtWidgets.QLabel(parent = self, text = "Select the ventral file if not assigned")
@@ -353,18 +356,64 @@ class DVFusionTab(QtWidgets.QWidget):
         SideFileWidget.setText(self.file_location)         
 
     def transpose_then_save(self):
-        self.DV_folder = QtWidgets.QFileDialog.getExistingDirectory(self)
-        os.chdir(self.DV_folder)
-        trapoSave(self.VentralFile.text(),self.DorsalFile.text(),self.DV_folder)
+        DV_folder = QtWidgets.QFileDialog.getExistingDirectory(self)
+        os.chdir(DV_folder)
+        meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+        key = self.channel + " dorsal ventral fusion"
+        edit_meta(meta_file,key,DV_folder)
+        if self.parent.is_main_channel:
+            trapoSave(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file)
+        else:
+            trapoSave(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,False,meta_file)
     
     def open_folders(self):
-        pass
+        key = self.channel + " dorsal ventral fusion"
+        self.DV_folder = get_text_from_meta(self.parent.pars_mainWindow.pars_initWindow.metaFile, key)
+        ventral_path = os.path.realpath(self.DV_folder+"/ventral_image/")
+        dorsal_path = os.path.realpath(self.DV_folder+"/dorsal_image/")
+        try:
+            os.startfile(ventral_path)
+            os.startfile(dorsal_path)
+        except:
+            pass
 
     def match_DV_fusion(self):
-        pass
+        key = self.channel + " dorsal ventral fusion"
+        DV_folder = get_text_from_meta(self.parent.pars_mainWindow.pars_initWindow.metaFile, key)
+        os.chdir(DV_folder)
+        meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+        if self.parent.is_main_channel:
+            z_overlap = self.shift_in_Width.text() 
+            x_shift = self.shift_in_Height.text()
+            xml_DV_fusion.generate_xml(int(z_overlap),int(x_shift),DV_folder,meta_file)
+            edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/terastitcher_for_DV.xml")
+        else:           
+            print("the matching will follow the main channel written in the xml file")
 
     def DV_fusion(self):
-        pass
+        key = self.channel + " dorsal ventral fusion"
+        meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+        DV_folder = get_text_from_meta(meta_file, key)
+        os.chdir(DV_folder)
+        
+        if not os.path.isdir("DV_Fusion"):
+            os.mkdir("DV_Fusion")
+        os.chdir("ventral_image")
+        
+        tifnames = glob.glob("*.tif")
+        single_file_size = os.stat(tifnames[0]).st_size
+        os.chdir(DV_folder)
+
+        if self.parent.is_main_channel:
+            run_terastitcher("terastitcher_for_DV.xml","DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size)
+        else:
+            with open(meta_file,"r") as meta:
+                im_info = meta.readlines()
+                key = "dorsal ventral fusion" 
+                [sn,xml_file] = find_key_from_meta(im_info,key)
+                current_xml = shutil.copy(xml_file,DV_folder) 
+            xml_edit_directory(current_xml,DV_folder)
+            run_terastitcher("terastitcher_for_DV.xml","DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size)
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
@@ -466,8 +515,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.channel_tabs = QtWidgets.QTabWidget(parent=self)
 
         self.pars_initWindow = parent
-        #channel_folders = self.splitChannels()
-        #channel_folders = ["channel_647"]
+        
         with open(parent.metaFile,"r") as meta:
             im_info = meta.read()
             pattern = re.compile(r"[\[]channels[\]] \: [\[]\'(channel_\d+)\',\s\'(channel_\d+)\',\s\'(channel_\d+)\'[\]]")
@@ -596,12 +644,14 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[ventral right overlap] : \n")
             meta.write("[ventral LR pixel difference in x] : \n")
             meta.write("[ventral LR pixel difference in y] : \n")
+            meta.write("[ventral edge index] : \n")
             meta.write("[dorsal left cutting pixel] : \n")
             meta.write("[dorsal right cutting pixel] : \n")
             meta.write("[dorsal left overlap] : \n")
             meta.write("[dorsal right overlap] : \n")
             meta.write("[dorsal LR pixel difference in x] : \n")
             meta.write("[dorsal LR pixel difference in y] : \n")
+            meta.write("[dorsal edge index] : \n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
@@ -617,6 +667,7 @@ class InitWindow(QtWidgets.QWidget):
                 meta.write("[%s dorsal left stitched] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal right stitched] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal merged image] : Not assinged\n"%a_folder)
+                meta.write("[%s dorsal ventral fusion] : Not assinged\n"%a_folder)
             meta.write("=== xml location === \n")
             meta.write("[ventral left XY] : Not assigned\n")
             meta.write("[ventral right XY] : Not assigned\n")
