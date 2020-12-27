@@ -95,7 +95,6 @@ def find_image_edge(img_file):
 
 
 def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
-    print(n,filename,isdorsal)
     # new_shape is a transposed shape
     # n is the serial number of the first page to be loaded.
     with TFF.TiffFile(filename) as tif:
@@ -199,7 +198,7 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
             if not os.path.exists(img_name):     
                 TFF.imwrite(img_name, img[m-n], bigtiff = True)
 
-def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal):
+def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=False):
     TFFim = TFF.TiffFile(filename)
     diff = new_shape[1] - len(TFFim.pages) 
     if diff > 0:
@@ -251,7 +250,7 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal=False):
     
     core_no = multiprocessing.cpu_count()-1
     mem = virtual_memory()
-    ram_use = mem.free*0.65/core_no
+    ram_use = mem.free*0.7/core_no
 
     new_shape = tuple(new_shape)
 
@@ -273,21 +272,23 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal=False):
     diff = new_shape[2] - len(tif.pages)
     
     if diff> 0:
-        if not isdorsal:
-            Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
-        else:
-            Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
         yzlist = glob.glob("yz*.tif")
+
         if not yzlist:
             templist = glob.glob("temp*.tif")
-            #Pool = multiprocessing.Pool(processes= core_no)
-            if templist:                
+            if templist:
                 tif = TFF.TiffFile(templist[0])
                 LoadedPagesNo = tif.pages[0].shape[0]
-                Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
-            with get_context("spawn").Pool(processes = core_no) as Pool:
-                result = Pool.starmap(generate_zero_image_for_z,Pool_input)
-                Pool.close()
+            #print(len(range(0,diff,LoadedPagesNo)))
+            if len(templist) < len(range(0,diff,LoadedPagesNo)):
+                if not isdorsal:
+                    Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
+                else:
+                    Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
+                
+                with get_context("spawn").Pool(processes = core_no) as Pool:
+                    result = Pool.starmap(generate_zero_image_for_z,Pool_input)
+                    Pool.close()
     
     yzlist = glob.glob("yz*.tif")
     # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
@@ -296,13 +297,11 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal=False):
         print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")
         print("%d pages were loaded at once for transpose"%LoadedPagesNo) 
         templist = glob.glob("temp*.tif")
-        Pool = multiprocessing.Pool(processes= core_no)
-        if not templist: 
-            Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]   
-        else:
+        if templist:
             tiftemp = TFF.TiffFile(templist[0])
             LoadedPagesNo = tiftemp.pages[0].shape[1]
-            Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
+
+        Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]
         with get_context("spawn").Pool(processes = core_no) as Pool:
             result = Pool.starmap(segmented_transpose,Pool_input)
             Pool.close()         
@@ -331,12 +330,30 @@ def Save2Raw(filename,new_shape,edge_index,isdorsal=False):
         print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
 
         # divided the chunck and multiprocessing 
-        Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]    
-        Pool = multiprocessing.Pool(processes= core_no)
-        with get_context("spawn").Pool(processes = core_no) as Pool:
-            result = Pool.starmap(image_recombination,Pool_input)
-            Pool.close()
-        #image_recombination(536,temptifs,x_layer_no_to_load,new_shape[0],isdorsal)
+        Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]
+        while True:
+            with get_context("spawn").Pool(processes = core_no) as Pool:
+                try:
+                    result = Pool.starmap(image_recombination,Pool_input)
+                    Pool.close()
+                except:
+                    """
+                    sometimes the multiprocessing breaks because of memory issue
+                    this except prvent the crash, and remove problematic files
+                    """
+                    Pool.close()
+                    yzlist = glob.glob("yz*.tif")
+                    modified_time = []
+                    for a_yz in yzlist:
+                        modified_time.append(os.path.getmtime(a_yz))
+                        sorted_modified_yz = [file for _,file in sorted(zip(modified_time,yzlist))]
+                    for n in range(len(yzlist)-core_no*2, len(yzlist)):
+                        os.remove(sorted_modified_yz[n])
+                        print("remove %s"%sorted_modified_yz[n])
+
+            yzlist = glob.glob("yz*.tif")
+            if len(yzlist) >= new_shape[0]-1:
+                break
 
     t_end = time.time()
     t_duration = t_end-t_start
