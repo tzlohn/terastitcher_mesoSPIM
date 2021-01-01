@@ -172,6 +172,11 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
 
 def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):      
 
+    if isdorsal:
+        name_prefix = "dorsal_"
+    else:
+        name_prefix = "ventral_"
+
     if n + x_layer_no < x_size:
         loading_range = range(n , n+x_layer_no)
     else:
@@ -183,7 +188,7 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
         str_m = str(m)
         digit_diff = len(str(x_size)) - len(str_m)
         str_m = "0"*digit_diff + str_m
-        img_name = "yz_" + str_m + ".tif"
+        img_name = name_prefix + str_m + ".tif"
         if not os.path.exists(img_name):          
             isdoing = True
             break
@@ -209,12 +214,15 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
 
         if isdorsal:
             img = np.flip(img, axis = 2)
+            name_prefix = "dorsal_"
+        else:
+            name_prefix = "ventral_"
         
         for m in loading_range:
             str_m = str(m)
             digit_diff = len(str(x_size)) - len(str_m)
             str_m = "0"*digit_diff + str_m
-            img_name = "yz_" + str_m + ".tif"
+            img_name = name_prefix + str_m + ".tif"
             if not os.path.exists(img_name):     
                 TFF.imwrite(img_name, img[m-n].transpose(), bigtiff = True)
 
@@ -295,14 +303,20 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
     # create filling matrices for matching the shape of both images (ventral/dorsal)
     diff = new_shape[2] - len(tif.pages)
     
+    if isdorsal:
+        yz_name = "dorsal*.tif"
+    else:
+        yz_name = "ventral*.tif"
+
     if diff> 0:
-        yzlist = glob.glob("yz*.tif")
+        yzlist = glob.glob(yz_name)
 
         if not yzlist:
             templist = glob.glob("temp*.tif")
             if templist:
-                temptif = TFF.TiffFile(templist[0])
-                LoadedPagesNo = temptif.pages[0].shape[1]
+                with TFF.TiffFile(templist[0]) as temptif:
+                    LoadedPagesNo = temptif.pages[0].shape[1]
+                    temptif.close()
             #print(len(range(0,diff,LoadedPagesNo)))
             if len(templist) < len(range(0,diff,LoadedPagesNo)):
                 if not isdorsal:
@@ -314,18 +328,20 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                     result = Pool.starmap(generate_zero_image_for_z,Pool_input)
                     Pool.close()
     
-    yzlist = glob.glob("yz*.tif")
+    yzlist = glob.glob(yz_name)
     # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
     if not yzlist:
         # get chunks and transpose the axis to z,y,x
         print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")
         templist = glob.glob("temp*.tif")
         if templist:
-            tiftemp = TFF.TiffFile(templist[0])
-            LoadedPagesNo = tiftemp.pages[0].shape[1]
+            with TFF.TiffFile(templist[0]) as tiftemp:
+                LoadedPagesNo = tiftemp.pages[0].shape[1]
+                tiftemp.close()
         print("\n%d pages were loaded per image for transpose"%LoadedPagesNo) 
         Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]
-        while True:
+        
+        while not templist or len(templist) < new_shape[2]//LoadedPagesNo:
             with get_context("spawn").Pool(processes = core_no) as Pool:
                 try:
                     result = Pool.starmap(segmented_transpose,Pool_input)
@@ -335,9 +351,8 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                     print("\nPickling problems causes memory error in multiprocessing")
                     tempfilelist = glob.glob("temp*.tif")
                     removeErrorFiles(tempfilelist,core_no)
-            tempfilelist = glob.glob("temp*.tif")
-            if len(tempfilelist) >= new_shape[2]//LoadedPagesNo:
-                break        
+            templist = glob.glob("temp*.tif")
+       
         """
         #multiprocessing will sometimes skip some items in list, the following code find the lost items and get them.
         lost_list = findLostFile(LoadedPagesNo,len(tif.pages),diff,isdorsal)
@@ -364,7 +379,7 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
 
         # divided the chunck and multiprocessing 
         Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]
-        while True:
+        while not yzlist or len(yzlist) < new_shape[0]-1:
             with get_context("spawn").Pool(processes = core_no) as Pool:
                 try:
                     result = Pool.starmap(image_recombination,Pool_input)
@@ -376,11 +391,9 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                     """
                     Pool.close()
                     print("\npickling problem happens and causes memory error")
-                    yzlist = glob.glob("yz*.tif")
+                    yzlist = glob.glob(yz_name)
                     removeErrorFiles(yzlist,core_no)
-            yzlist = glob.glob("yz*.tif")
-            if len(yzlist) >= new_shape[0]-1:
-                break
+            yzlist = glob.glob(yz_name)
 
     t_end = time.time()
     t_duration = t_end-t_start
