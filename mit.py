@@ -2,7 +2,7 @@ from PyQt5 import QtWidgets,QtCore
 from Channel_sorting import sortChannel
 from LR_sorting import sortLR
 from xml_XY_stitching import xml_XY
-from Transpose_then_save2D import trapoSave
+from Teratranspose import teratranspose
 import xml_LR_merge
 import xml_DV_fusion
 import sys,os,re,shutil,glob,time
@@ -42,8 +42,9 @@ def edit_meta(metaFile,key,value):
 
 def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
-        string = 'terastitcher --import --projin=\"' + xmlname + '\"'
-        os.system(string)
+        if not os.path.exists("xml_import.xml"):
+            string = 'terastitcher --import --projin=\"' + xmlname + '\"'
+            os.system(string)
 
         mem = virtual_memory()
         if not file_size == 0:
@@ -77,24 +78,28 @@ def xml_edit_directory(xml_file,dirs):
         texts = xml.readlines()
         xml.close()
     
-    result = "Not a value"
+    result = []
     n = -1
-    while result == "Not a value":
+    while not result:
         n = n+1
-        pattern = re.compile(r"<stacks_dir value=(.*)\n")
+        pattern = re.compile(r"    <stacks_dir value=(.*)\n")
         result = pattern.findall(texts[n])
-        result = result[0]
+        if result:
+            result = result[0]
 
-    new_line = '    <stacks_dir value="%s">'%dirs
+    new_line = '    <stacks_dir value="%s" />\n'%dirs
     texts[n] = new_line
 
-    result = "Not a value"
+    result = []
     n = -1    
-    while result == "Not a value" and n < len(texts):
+    while not result:
         n = n+1
-        pattern = re.compile(r"(<mdata_bin.*)")
+        if n >= len(texts):
+            break
+        pattern = re.compile(r"(    <mdata_bin.*)")
         result = pattern.findall(texts[n])
-        result = result[0]
+        if result:
+            result = result[0]
     
     if n != len(texts):
         texts.remove(result)
@@ -227,11 +232,11 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         # after stitching, the file location for fusion file can be saved to meta file with /LR_fusion appended
         FileLocation = self.unstitchedFileLocation.text()
         os.chdir(FileLocation)
-        [meta_data,self.merge_folder] = xml_XY(FileLocation)
-        os.chdir(FileLocation)
         if not os.path.isdir("XY_stitched"):
             os.mkdir("XY_stitched")
         if self.parent.pars_channelTab.is_main_channel:
+            [meta_data,self.merge_folder] = xml_XY(FileLocation)
+            os.chdir(FileLocation)
             run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
             for key in meta_data.keys():
                 if key == "x positions "+self.side:
@@ -250,7 +255,8 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                 im_info = meta.readlines()
                 key = self.parent.DV + " " + self.side + " XY" 
                 [sn,xml_file] = find_key_from_meta(im_info,key)
-                current_xml = shutil.copy(xml_file,FileLocation)
+                shutil.copy(xml_file,FileLocation)
+                current_xml = FileLocation+"/xml_merging.xml"
                 xml_edit_directory(current_xml,FileLocation)
                 self.edit_xml(current_xml,FileLocation)
             run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=True)
@@ -262,14 +268,15 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             all_lines = xml.readlines()
             xml.close()
 
-        pattern = re.compile(r"(.*IMG_REGEX=)(.*)(_\d\d\d_nm.*)")
+        
         for ind,a_line in enumerate(all_lines):
+            pattern = re.compile(r"(.*IMG_REGEX=)\"(.*)(_\d\d\d_nm.*)\"")
             name = pattern.findall(a_line)
             if not name:
                 continue
             else:
-                name_prefix = name[1]
-                pattern = re.compile(r"%s(.*)"%name_prefix)
+                name_prefix = name[0][1]
+                pattern = re.compile(r'%s(.*)'%name_prefix)
                 name_postfix = "not a value"
                 n = -1
                 while name_postfix == "not a value":
@@ -279,8 +286,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                         continue
                     else:
                         name_postfix = result[0]
-                        new_name = name[0]+name_prefix+name_postfix+name[2]
-                del name
+                        new_name = name[0][0]+"\""+name_prefix+name_postfix+"\">\n"
                 all_lines[ind] = new_name
 
         with open(xml_file,"w") as xml:
@@ -362,9 +368,9 @@ class DVFusionTab(QtWidgets.QWidget):
         key = self.channel + " dorsal ventral fusion"
         edit_meta(meta_file,key,DV_folder)
         if self.parent.is_main_channel:
-            trapoSave(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file)
+            teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file)
         else:
-            trapoSave(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,False,meta_file)
+            teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,False,meta_file)
     
     def open_folders(self):
         key = self.channel + " dorsal ventral fusion"
@@ -379,13 +385,26 @@ class DVFusionTab(QtWidgets.QWidget):
 
     def match_DV_fusion(self):
         key = self.channel + " dorsal ventral fusion"
-        DV_folder = get_text_from_meta(self.parent.pars_mainWindow.pars_initWindow.metaFile, key)
-        os.chdir(DV_folder)
         meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+        DV_folder = get_text_from_meta(meta_file, key)
+        os.chdir(DV_folder)
         if self.parent.is_main_channel:
-            z_overlap = self.shift_in_Width.text() 
-            x_shift = self.shift_in_Height.text()
-            xml_DV_fusion.generate_xml(int(z_overlap),int(x_shift),DV_folder,meta_file)
+            x_shift = get_text_from_meta(meta_file, "dorsal relative to ventral shift in width")
+            z_shift = get_text_from_meta(meta_file, "dorsal relative to ventral shift in height")
+            if x_shift != "not_a_value":
+                print("x shift has been assigned with value %s"%x_shift)
+                x_shift = int(x_shift)                
+            else:
+                x_shift = self.shift_in_Width.text()
+
+            if z_shift != "not_a_value":
+                print("z shift has been assigned with value %s"%z_shift)
+                z_shift = int(z_shift)                
+            else:
+                z_shift = self.shift_in_Height.text()
+            edit_meta(meta_file,"dorsal relative to ventral shift in width",x_shift)
+            edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
+            xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)
             edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/terastitcher_for_DV.xml")
         else:           
             print("the matching will follow the main channel written in the xml file")
@@ -652,6 +671,8 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[dorsal LR pixel difference in x] : \n")
             meta.write("[dorsal LR pixel difference in y] : \n")
             meta.write("[dorsal edge index] : \n")
+            meta.write("[dorsal relative to ventral shift in width] : \n")
+            meta.write("[dorsal relative to ventral shift in height] : \n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
