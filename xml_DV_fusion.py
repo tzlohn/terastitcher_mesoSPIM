@@ -13,12 +13,16 @@ def get_value(expression,text):
     value = float(value)
     return value
 
-def report_progress(filesize):
+def report_progress():
     all_file = glob.glob("*.tif")
+    yz_file = glob.glob("yz*.tif")
+    n = len(yz_file)
+    """
     n = 0
     for a_file in all_file:
         if os.stat(a_file).st_size == filesize:
             n = n+1
+    """
     p = int(n*100/len(all_file))
     sys.stdout.write("\r{0} ({1}/{2})".format(">"*p+"="*(100-p),n,len(all_file)))
     sys.stdout.flush()
@@ -36,32 +40,37 @@ def check_file_size(folders,root_dir):
     
     return filesize
 
-def cropped_overlap(tifname,shift,im_size,image_size,idx,isdorsal):
+def cropped_overlap(tifname,shift,im_size,image_size,isdorsal):
     # 25 is the default searching range for overlapping correlation in Terastitcher
     current_size =  os.stat(tifname).st_size
     if  current_size == max(image_size):
         if not isdorsal:
             if shift < 0:
-                ##crop_range = range(0,im_size[0]-abs(shift)+25)
-                crop_range = range(0,im_size[1]-abs(shift)+25)
+                crop_range = range(0,im_size[1]-abs(shift))
             else:   
-                ##crop_range = range(shift-25,im_size[0])
-                crop_range = range(shift-25,im_size[1])
+                crop_range = range(shift,im_size[1])
         else:
             if shift < 0:
-                ##crop_range = range(abs(shift)-25,im_size[0])
-                crop_range = range(abs(shift)-25,im_size[1])
+                crop_range = range(abs(shift),im_size[1])
             else:
-                ##crop_range = range(0,im_size[0]-shift+25)
-                crop_range = range(0,im_size[1]-shift+25)
+                crop_range = range(0,im_size[1]-shift)
 
         im = TFF.imread(tifname)
-        im = im[:,crop_range]
-        ##im = im[crop_range,:]
-        TFF.imwrite(tifname,im,append = False, bigtiff = True)
-        im_size = os.stat(tifname).st_size
-        if idx%100 == 0:
-            report_progress(im_size)
+
+        if isdorsal:
+            pat_str = "dorsal_"
+        else:
+            pat_str = "ventral_"
+
+        pattern = re.compile(r"%s(\d+)"%pat_str)
+        SN = pattern.findall(tifname)
+        SN = SN[0]
+        new_name = "yz_"+SN+".tif"
+
+        TFF.imwrite(new_name,im[:,crop_range],append = False, bigtiff = True)
+        os.remove(tifname)
+        #im_size = os.stat(tifname).st_size
+        report_progress()
 
 def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6.5, dim_D = 6.5, dim_V = 6):
    
@@ -71,15 +80,22 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
     foldername = ['ventral_image','dorsal_image']
 
     isdone = True
-    if isMain:
-        if metafile != "":
-            with open(metafile,'r') as meta_file:
-                im_info = meta_file.read()    
-                pattern = re.compile(r"[\[]dorsal relative to ventral shift in width[\]] \: (\d+)")
-                output = pattern.findall(im_info)       
-                if not output:
-                    isdone = False
-    
+    """check whether the process is done by their file sizes"""
+    image_size_list = check_file_size(foldername,DV_dir)
+    if len(image_size_list) > 2:
+        print("some images have problem, please check their sizes")
+        return False
+    elif len(image_size_list) == 1:
+        os.chdir("ventral_image")
+        yz_list = glob.glob("yz_*.tif")
+        if not yz_list:
+            isdone = False
+        else:
+            isdone = True
+        os.chdir(DV_dir)
+    else:
+        isdone = False
+
     if not isdone:            
         """check whether the process is done by their file sizes"""
         image_size_list = check_file_size(foldername,DV_dir)
@@ -124,14 +140,14 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
 
             if abs(x_shift) > 25:
                 core_no = multiprocessing.cpu_count()-1
-                pool_input = [(tif,x_shift,x_size_ori,image_size_list,idx,isDorsal) for idx,tif in enumerate(tif_name)]
+                pool_input = [(tif,x_shift,x_size_ori,image_size_list,isDorsal) for tif in tif_name]
                 print("The %s are being cropped to remove blank parts and pre-aligned in height"%folder)
                 t_start = time.time()
                 with get_context("spawn").Pool(processes = core_no) as Pool: 
                     result = Pool.starmap(cropped_overlap,pool_input)
                     Pool.close()
 
-                sys.stdout.write("\r{0} ({1}/{2})".format(">"*100,len(tif_name),len(tif_name)))
+                sys.stdout.write("\r{0}| ({1}/{2})".format(">"*100,len(tif_name),len(tif_name)))
                 t_end = time.time()
                 print("\ntotal duration : %d s"%(t_end-t_start))
             os.chdir(DV_dir)
@@ -155,13 +171,12 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
 
         bit = 16
         ######################
-            # DVH refer to current coordinates, xyz refer to the coordinate of the mechanical stage
+        # DVH refer to current coordinates, xyz refer to the coordinate of the mechanical stage
         if metafile != "":
             with open(metafile,'r') as meta_file:
                 im_info = meta_file.read()
                 
                 pattern = re.compile(r"[\[]pixel size of x \(um\)[\]] \: (\d+)(\.)?(\d+)?")
-                ##dim_V = get_value(pattern,im_info)
                 dim_H = get_value(pattern,im_info)
 
                 pattern = re.compile(r"[\[]pixel size of y \(um\)[\]] \: (\d+)(\.)?(\d+)?")
@@ -172,18 +187,10 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
                 x_pixels = int(x_pixels)
 
                 pattern = re.compile(r"[\[]z step size \(um\)[\]] \: (\d+)(\.)?(\d+)?")
-                ##dim_H = get_value(pattern,im_info)
                 dim_V = get_value(pattern,im_info)
-        ##offset_V = 0
-        ##offset_H = (ventral_image.shape[1]-z_overlap)*dim_H
+
         offset_V = z_shift*dim_V
         offset_H = 0
-
-        ##total_row = 1
-        ##total_column = 2
-        ##shift_H = [0, ventral_image.shape[1] - z_overlap]
-        ##shift_V = [0, 0]
-
         total_row = 2
         total_column = 1
         shift_V = [0, z_shift]

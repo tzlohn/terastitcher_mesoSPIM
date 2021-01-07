@@ -1,6 +1,6 @@
 import tifffile as TFF
 import numpy as np
-import time,os,glob,re,random
+import time,os,glob,re,random,sys
 #from tkinter import filedialog
 #import tkinter as tk
 import multiprocessing
@@ -108,6 +108,15 @@ def removeErrorFiles(file_list,core_no):
         os.remove(sorted_modified_file[n])
         print("remove %s"%sorted_modified_file[n])
 
+def progress_bar(total_length,key):
+    file_list = glob.glob(key)
+    n = len(file_list)
+    p = int(n*100/total_length)
+    if p > 100:
+        p = 100
+    sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
+    sys.stdout.flush()
+
 def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
     # new_shape is a transposed shape
     # n is the serial number of the first page to be loaded.
@@ -166,6 +175,7 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
         an_image = an_image.transpose(2,1,0)
 
         TFF.imwrite(temp_img_name, an_image, bigtiff = True)
+        progress_bar(int(new_shape[2]/LoadedPagesNo),"temp*.tif")
         return True
     else:
         pass
@@ -226,6 +236,8 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
             if not os.path.exists(img_name):     
                 TFF.imwrite(img_name, img[m-n].transpose(), bigtiff = True)
 
+        progress_bar(x_size-1,name_prefix+"*.tif")
+
 def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=False):
     
     string_n = "0"*(len(str(new_shape[2])) - len(str(n)))+str(n)
@@ -248,6 +260,8 @@ def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=Fal
             filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
         
         TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
+
+        progress_bar(len(Filling_SN),"temp*.tif")
     else:
         pass
 
@@ -323,7 +337,7 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                     Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
                 else:
                     Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
-                
+                print("Creating blank images to fill the differences between ventral and dorsal")
                 with get_context("spawn").Pool(processes = core_no) as Pool:
                     result = Pool.starmap(generate_zero_image_for_z,Pool_input)
                     Pool.close()
@@ -332,13 +346,13 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
     # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
     if not yzlist:
         # get chunks and transpose the axis to z,y,x
-        print("Step 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")
+        print("\nStep 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")
         templist = glob.glob("temp*.tif")
         if templist:
             with TFF.TiffFile(templist[0]) as tiftemp:
                 LoadedPagesNo = tiftemp.pages[0].shape[1]
                 tiftemp.close()
-        print("\n%d pages were loaded per image for transpose"%LoadedPagesNo) 
+        print("%d pages were loaded per image for transpose"%LoadedPagesNo) 
         Pool_input = [(layers,filename,LoadedPagesNo,edge_index,new_shape,isdorsal) for layers in range(0,len(tif.pages),LoadedPagesNo)]
         
         while not templist or len(templist) < new_shape[2]//LoadedPagesNo:
@@ -369,7 +383,7 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
     # get required parameters, and calculate the resources
     
     if not yzlist or len(yzlist) < new_shape[0]-1:
-        print("Step 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images") 
+        print("\nStep 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images") 
         ram_use = mem.free*0.8/core_no    
         temptifs = glob.glob("temp*.tif")
         one_temptif_size = os.stat(temptifs[0]).st_size
@@ -404,7 +418,7 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
         side = "dorsal"
     else:
         side = "ventral"
-    print("total duration for processing %s: %d hour(s) %d minute(s) %d second(s) \n"%(side,t_hour,t_minute,t_second))
+    print("\ntotal duration for processing %s: %d hour(s) %d minute(s) %d second(s) \n"%(side,t_hour,t_minute,t_second))
 
 def teratranspose(ventral_file,dorsal_file,folderpath, meta_file, is_mainChannel = True):
     if is_mainChannel:
