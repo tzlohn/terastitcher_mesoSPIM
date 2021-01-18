@@ -260,6 +260,10 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                 xml_edit_directory(current_xml,FileLocation)
                 self.edit_xml(current_xml,FileLocation)
             run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=True)
+            #run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=False)
+            meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
+            new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
+            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)            
 
     def edit_xml(self,xml_file,current_folder):
         os.chdir(current_folder)
