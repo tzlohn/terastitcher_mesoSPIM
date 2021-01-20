@@ -125,7 +125,6 @@ def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folde
     if side == "Right":
         im = im[:,0:cutting_pixel - overlap_offset]
 
-
     elif side == "Left":    
         #im = im[:,cutting_pixel:size_left[1] - overlap_offset]
         im = im[:,cutting_pixel + overlap_offset :-1]
