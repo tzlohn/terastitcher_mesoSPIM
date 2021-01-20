@@ -165,7 +165,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         if parameters != False:
             keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y" ]
             for n in range(len(parameters)):
-                par_key = par_key = self.parent.DV + keys[n]
+                par_key = self.parent.DV + keys[n]
                 edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,par_key,parameters[n])
 
     def LR_merge(self):

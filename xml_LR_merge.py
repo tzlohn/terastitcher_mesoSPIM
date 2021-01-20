@@ -48,7 +48,7 @@ def find_all_0_rows(img):
         
     return edge
 
-def finding_index_for_zero(im_file, page_num, side, removed_x):
+def finding_index_for_zero(im_file, page_num, side):
     
     last_layers = TFF.imread(im_file, key = range(page_num-10,page_num,1))
     column_num = last_layers.shape[2]
@@ -59,11 +59,11 @@ def finding_index_for_zero(im_file, page_num, side, removed_x):
     if side == "left":
         delta = 1
         n = -1
-        last_layers = last_layers[:,:,removed_x:column_num]
+        last_layers = last_layers[:,:,column_num]
     elif side == "right":
         delta = -1
-        n = column_num-removed_x-1
-        last_layers = last_layers[:,:,0:column_num-removed_x]
+        n = column_num-1
+        last_layers = last_layers[:,:,0:column_num]
 
     size_of_0 = 1
     ini_set = n
@@ -79,7 +79,7 @@ def finding_index_for_zero(im_file, page_num, side, removed_x):
         size_of_0 = index_of_0.shape[0]
 
     if side == "right":
-        return n+removed_x
+        return n
     elif side == "left":
         return n
 
@@ -118,16 +118,17 @@ def find_0_pos(all_positions,image_size_x,side):
     elif side == "Right":
         return min(pos_with_0)
 
-def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folder,removed_x):    
+def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folder):    
     img = TFF.TiffFile(imfile)
     im = TFF.imread(imfile, key = n)
 
     if side == "Right":
-        im = im[:,0:cutting_pixel - removed_x - overlap_offset]
+        im = im[:,0:cutting_pixel - overlap_offset]
+
 
     elif side == "Left":    
         #im = im[:,cutting_pixel:size_left[1] - overlap_offset]
-        im = im[:,cutting_pixel + overlap_offset + removed_x:-1]
+        im = im[:,cutting_pixel + overlap_offset :-1]
 
     an_image = get_dim_match_image(im,x_diff,y_diff,side)
 
@@ -205,12 +206,6 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
     pos_L = find_0_pos(all_left_positions,image_size,"Left")
     pos_R = find_0_pos(all_right_positions,image_size,"Right")
 
-    # only for the current file:TL200618
-    if pos_L != max(list(map(float,all_left_positions))):
-        removed_x = round(0.5*(size_left[1]-x_pixels))
-    else:
-        removed_x = 0
-
     ratio_of_Right = abs(pos_R + 0.5*image_size)/image_size 
     ratio_of_Left = abs(pos_L - 0.5*image_size)/image_size
     if ratio_of_Right >0.9:
@@ -228,8 +223,8 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
         
     # finding upper and lower 0 lines
     if is_main_channel == True:
-        left_cutting_pixel = finding_index_for_zero(left_file, page_num_left, "left",removed_x) # should be a number closer to 0
-        right_cutting_pixel = finding_index_for_zero(right_file, page_num_right, "right",removed_x) # should be a number closer to size_right
+        left_cutting_pixel = finding_index_for_zero(left_file, page_num_left, "left") # should be a number closer to 0
+        right_cutting_pixel = finding_index_for_zero(right_file, page_num_right, "right") # should be a number closer to size_right
         y_diff = size_left[0]-size_right[0]
         x_diff = (size_left[1]-1 -left_cutting_pixel- overlap_offset_L)-(right_cutting_pixel-overlap_offset_R)
     else:
@@ -237,28 +232,28 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
             im_info = meta.read()
             string = DV + " left cutting pixel"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            left_cutting_pixel = get_value(pattern,im_info)
+            left_cutting_pixel = int(get_value(pattern,im_info))
             string = DV + " right cutting pixel"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            right_cutting_pixel = get_value(pattern,im_info)
+            right_cutting_pixel = int(get_value(pattern,im_info))
             string = DV + " left overlap"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            overlap_offset_L = get_value(pattern,im_info)
+            overlap_offset_L = int(get_value(pattern,im_info))
             string = DV + " right overlap"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            overlap_offset_R = get_value(pattern,im_info)
+            overlap_offset_R = int(get_value(pattern,im_info))
             string = DV + " LR pixel difference in x"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            x_diff = get_value(pattern,im_info)
+            x_diff = int(get_value(pattern,im_info))
             string = DV + " LR pixel difference in y"
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
-            y_diff = get_value(pattern,im_info)
+            y_diff = int(get_value(pattern,im_info))
     #x_diff = (left_cutting_pixel-overlap_offset_L)-(size_right[1]-overlap_offset_R-right_cutting_pixel)
     print(("left_cutting_pixel:%d,right_cutting_pixel:%d,")%(left_cutting_pixel,right_cutting_pixel))
     print(("x_diff:%d,y_diff:%d,")%(x_diff,y_diff))
     
-    Pool_input_right = [(n,right_file,overlap_offset_R,right_cutting_pixel,x_diff,y_diff,"Right",dest_folder[0],removed_x) for n in range(page_num_right)]
-    Pool_input_left = [(n,left_file,overlap_offset_L,left_cutting_pixel,x_diff,y_diff,"Left",dest_folder[1],removed_x) for n in range(page_num_left)]
+    Pool_input_right = [(n,right_file,overlap_offset_R,right_cutting_pixel,x_diff,y_diff,"Right",dest_folder[0]) for n in range(page_num_right)]
+    Pool_input_left = [(n,left_file,overlap_offset_L,left_cutting_pixel,x_diff,y_diff,"Left",dest_folder[1]) for n in range(page_num_left)]
 
     im_shape = multiproc(Pool_input_right,Pool_input_left)
 
