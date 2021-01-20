@@ -102,7 +102,8 @@ def xml_edit_directory(xml_file,dirs):
             result = result[0]
     
     if n != len(texts):
-        texts.remove(result)
+        del texts[n]
+        #texts.remove(result)
 
     with open(xml_file,"w") as xml:
         xml.writelines(texts)
