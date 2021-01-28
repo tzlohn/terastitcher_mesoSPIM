@@ -59,11 +59,9 @@ def finding_index_for_zero(im_file, page_num, side):
     if side == "left":
         delta = 1
         n = -1
-        last_layers = last_layers[:,:,column_num]
     elif side == "right":
         delta = -1
         n = column_num-1
-        last_layers = last_layers[:,:,0:column_num]
 
     size_of_0 = 1
     ini_set = n
@@ -78,10 +76,7 @@ def finding_index_for_zero(im_file, page_num, side):
         index_of_0 = np.where(columns == 0)[0]
         size_of_0 = index_of_0.shape[0]
 
-    if side == "right":
-        return n
-    elif side == "left":
-        return n
+    return n
 
 def get_dim_match_image(im, x_diff,y_diff,side):
     dim_shape = im.shape
@@ -197,8 +192,10 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
 
     os.chdir(working_folder)
     dest_folder = ["right_rot","left_rot"]
-    os.mkdir(dest_folder[0])
-    os.mkdir(dest_folder[1])
+    if not os.path.exists(dest_folder[0]):
+        os.mkdir(dest_folder[0])
+    if not os.path.exists(dest_folder[1]):
+        os.mkdir(dest_folder[1])
 
     ## removing 80% of overlap
     image_size = pixel_size_x * x_pixels
