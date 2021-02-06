@@ -107,7 +107,7 @@ def find_0_pos(all_positions,image_size_x,side):
         all_positions[ind] = pos
         if abs(pos) <= 0.5* image_size_x:
             pos_with_0.append(pos)
-
+    # There might be several tile containing zero positions, so only return the extrem.
     if side == "Left":
         return max(pos_with_0)
     elif side == "Right":
@@ -184,10 +184,12 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
             
     with TFF.TiffFile(right_file) as right_tif:
         size_right = right_tif.pages[0].shape
+        x_in_right = size_right[1]
         page_num_right = int(round(len(right_tif.pages)))
 
     with TFF.TiffFile(left_file) as left_tif:
         size_left = left_tif.pages[0].shape
+        x_in_left = size_left[1]
         page_num_left = int(round(len(left_tif.pages)))
 
     os.chdir(working_folder)
@@ -200,7 +202,11 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
     ## removing 80% of overlap
     image_size = pixel_size_x * x_pixels
     pos_L = find_0_pos(all_left_positions,image_size,"Left")
+    pos_L_idx = all_left_positions.index(pos_L)
+    redundant_tile_L = pos_L_idx
     pos_R = find_0_pos(all_right_positions,image_size,"Right")
+    pos_R_idx = all_left_positions.index(pos_R)
+    redundant_tile_R = len(all_right_positions)-pos_R_idx-1
 
     ratio_of_Right = abs(pos_R + 0.5*image_size)/image_size 
     ratio_of_Left = abs(pos_L - 0.5*image_size)/image_size
@@ -213,8 +219,15 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
         overlap_offset_L = x_pixels
     else:
         # 20% overlap
+        """
         overlap_offset_L = x_pixels-round((ratio_of_Left+0.1)*x_pixels)
         overlap_offset_R = x_pixels-round((ratio_of_Right+0.1)*x_pixels)
+        """
+        overlap_offset_L = 1-ratio_of_Left+redundant_tile_L
+        overlap_offset_R = 1-ratio_of_Right+redundant_tile_R
+        overlap_offset_L = round((overlap_offset_L)/len(all_left_positions)*x_in_left - 0.1*x_pixels)
+        overlap_offset_R = round((overlap_offset_R)/len(all_right_positions)*x_in_right - 0.1*x_pixels)
+    
     print(("overlap_offset_L:%d,overlap_offset_R:%d,")%(overlap_offset_L,overlap_offset_R))
         
     # finding upper and lower 0 lines
@@ -239,10 +252,10 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
             pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
             overlap_offset_R = int(get_value(pattern,im_info))
             string = DV + " LR pixel difference in x"
-            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            pattern = re.compile(r"[\[]%s[\]] \: (-?\d+)(\.)?(\d+)?"%string)
             x_diff = int(get_value(pattern,im_info))
             string = DV + " LR pixel difference in y"
-            pattern = re.compile(r"[\[]%s[\]] \: (\d+)(\.)?(\d+)?"%string)
+            pattern = re.compile(r"[\[]%s[\]] \: (-?\d+)(\.)?(\d+)?"%string)
             y_diff = int(get_value(pattern,im_info))
     #x_diff = (left_cutting_pixel-overlap_offset_L)-(size_right[1]-overlap_offset_R-right_cutting_pixel)
     print(("left_cutting_pixel:%d,right_cutting_pixel:%d,")%(left_cutting_pixel,right_cutting_pixel))
