@@ -10,13 +10,6 @@ from tkinter import filedialog, simpledialog
 from shutil import copyfile
 import os,re,glob,shutil,time
 
-"""
-root = tk.Tk()
-root.withdraw()
-
-working_folder = filedialog.askdirectory()
-os.chdir(working_folder)
-"""
 def sortChannel(working_folder):
     print("warning: if you have different channels used the same wavelength to excite, then this function can't work properly. Please contact Tzu-Lun in this case")
 
@@ -82,3 +75,11 @@ def sortChannel(working_folder):
         shutil.move(its_meta_file, working_folder+"/"+channels_folder[n])
 
     return channels_folder
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.withdraw()
+
+    working_folder = filedialog.askdirectory()
+    os.chdir(working_folder)
+    sortChannel(working_folder)

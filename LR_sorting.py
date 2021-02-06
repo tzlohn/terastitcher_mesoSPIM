@@ -66,6 +66,7 @@ def save2tif(a_raw_file,working_folder):
         elif filename_piece[0][1] == "_Right":    
             shutil.move(new_tif_name, working_folder+"/Right")
             shutil.move(new_meta_name, working_folder+"/Right")
+    return True
 
 
 def sortLR(working_folder):
@@ -101,8 +102,8 @@ def sortLR(working_folder):
         os.mkdir("Right")
 
     all_raw_files = glob.glob("*.raw")
-    a_file_size = os.stat(all_raw_files[0]).st_size
-    core_no = int(virtual_memory().free/a_file_size)
+    #a_file_size = os.stat(all_raw_files[0]).st_size
+    core_no = mp.cpu_count()-1 #int(virtual_memory().free/a_file_size)
     pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
     with get_context("spawn").Pool(processes=core_no) as pool:
         result = pool.starmap(save2tif,pool_input)

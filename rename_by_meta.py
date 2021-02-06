@@ -30,9 +30,9 @@ for a_meta in all_meta_file:
 
     name_prefix = a_meta[0:len(a_meta)-9]
     n = 0
-    while name_prefix != all_raw_file[n] and n < len(all_raw_file) :
+    while name_prefix != all_raw_file[n] and n < len(all_raw_file)-1 :
         n = n+1
-    if n >= len(all_raw_file):
+    if n >= len(all_raw_file)-1:
         print("the image file %s can't be found"%name_prefix)
     else:
         image_name = all_raw_file[n]
