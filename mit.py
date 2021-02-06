@@ -49,11 +49,15 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
         mem = virtual_memory()
         if not file_size == 0:
             slice_no = mem.free*0.8/file_size//4
-            print(slice_no)
-            time.sleep(5)
+            #print(slice_no)
+            time.sleep(1)
 
         if output_folder == "XY_stitched":
-            string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=200'            
+            file_size = 2048*2048*2
+            slice_no = mem.free*0.8/file_size//4
+            if(slice_no > 300):
+                slice_no = 300
+            string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=%d'%int(slice_no)            
         elif file_size == 0:
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
         else:
@@ -72,6 +76,7 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
     else:
         string = 'terastitcher --merge --projin=\"'+ xmlname + '\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
         os.system(string)
+    print("Moving the stitched file to an appropriate directory...")
 
 def xml_edit_directory(xml_file,dirs):
     with open(xml_file,"r") as xml:
@@ -180,9 +185,6 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         os.chdir(self.merge_folder)
         if self.parent.pars_channelTab.is_main_channel:
             run_terastitcher("terastitcher_for_LR.xml","merged","TiledXY|3Dseries",single_file_size)
-            output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
-            key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " merged image"
-            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
             key = self.parent.DV + " LR merged"
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,self.merge_folder+"/xml_merging.xml")
         else:
@@ -193,6 +195,10 @@ class LR_MergeBox(QtWidgets.QGroupBox):
                 current_xml = shutil.copy(xml_file,self.merge_folder)
                 xml_edit_directory(current_xml,self.merge_folder)
             run_terastitcher(current_xml,"merged","TiledXY|3Dseries",single_file_size,is_onlymerge=True)            
+        output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
+        print("Moved!!")
+        key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " merged image"
+        edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
 
 class LR_GroupBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None, side = None):
@@ -252,6 +258,13 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             xml_location_key = self.parent.DV + " " + self.side + " XY"
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,xml_location_key,xml_location) 
         else:
+            os.chdir("..")   
+            if os.path.exists("LR_fusion"):
+                pass
+            else:
+                os.mkdir("LR_fusion")
+            os.chdir(FileLocation)
+
             with open(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,"r") as meta:
                 im_info = meta.readlines()
                 key = self.parent.DV + " " + self.side + " XY" 
@@ -264,7 +277,8 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             #run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=False)
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
-            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)            
+            edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
+        print("Moved!!")            
 
     def edit_xml(self,xml_file,current_folder):
         os.chdir(current_folder)
@@ -341,6 +355,18 @@ class DVFusionTab(QtWidgets.QWidget):
         self.generate_DV_xml.setText("match the dimension of DV images and generate xml")
         self.generate_DV_xml.clicked.connect(self.match_DV_fusion)
 
+        if not self.parent.is_main_channel:
+            meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+            key = "dorsal relative to ventral shift in width"
+            width = get_text_from_meta(meta_file,key)
+            key = "dorsal relative to ventral shift in height"
+            height = get_text_from_meta(meta_file,key)
+            self.shift_in_Width.setText(width)
+            self.shift_in_Height.setText(height)
+            self.shift_in_Width.setDisabled(True)
+            self.shift_in_Height.setDisabled(True)
+            self.generate_DV_xml.setDisabled(True)
+
         self.fuse_DV = QtWidgets.QPushButton(self)
         self.fuse_DV.setText("DV fusion!!")
         self.fuse_DV.clicked.connect(self.DV_fusion)
@@ -375,7 +401,10 @@ class DVFusionTab(QtWidgets.QWidget):
         if self.parent.is_main_channel:
             teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file)
         else:
-            teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,False,meta_file)
+            teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file,False)
+            x_shift = self.shift_in_Width.text() 
+            z_shift = self.shift_in_Height.text()
+            xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)  
     
     def open_folders(self):
         key = self.channel + " dorsal ventral fusion"
@@ -411,7 +440,7 @@ class DVFusionTab(QtWidgets.QWidget):
             edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
             xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)
             edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/terastitcher_for_DV.xml")
-        else:           
+        else:        
             print("the matching will follow the main channel written in the xml file")
 
     def DV_fusion(self):
