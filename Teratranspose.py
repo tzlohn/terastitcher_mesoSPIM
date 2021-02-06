@@ -147,7 +147,7 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
                         an_image[p,:,:] = a_slice
                     else:
                         if p == 0:
-                            q = 1;
+                            q = 1
                             while not isinstance(a_slice,np.ndarray):
                                 a_slice = TFF.imread(filename, key = n+p+q)
                                 q=q+1
@@ -432,7 +432,7 @@ def teratranspose(ventral_file,dorsal_file,folderpath, meta_file, is_mainChannel
         with open(meta_file,"r") as meta:
             im_info = meta.read()
             for side in ["ventral edge index","dorsal edge index"]:
-                pattern = re.compile(r"[\[]%s[\]] \: [\[](?-\d+),(?-\d+),(?-\d+),(?-\d+)[\]]"%side)
+                pattern = re.compile(r"[\[]%s[\]] \: [\[](-?\d+), (-?\d+), (-?\d+), (-?\d+)[\]]"%side)
                 found_values = pattern.findall(im_info)
                 found_values = found_values[0]
                 if side == "ventral edge index":
