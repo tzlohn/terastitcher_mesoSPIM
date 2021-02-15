@@ -55,8 +55,8 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
         if output_folder == "XY_stitched":
             file_size = 2048*2048*2
             slice_no = mem.free*0.8/file_size//4
-            if(slice_no > 300):
-                slice_no = 300
+            if(slice_no > 350):
+                slice_no = 350
             string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=%d'%int(slice_no)            
         elif file_size == 0:
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
@@ -64,7 +64,12 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
             string = 'terastitcher --displcompute --projin="xml_import.xml" --subvoldim=%d'%int(slice_no)
         
         if not os.path.exists("xml_displcomp.xml"):
-            os.system(string)
+            value = os.system(string)
+            while value != 0:
+                slice_no = slice_no-5
+                string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=%d'%int(slice_no)
+                value = os.system(string)
+            print("subvoldim = %d"%slice_no)     
 
         if not os.path.exists("xml_merging.xml"):
             os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
