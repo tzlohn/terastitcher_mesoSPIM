@@ -109,6 +109,13 @@ def sortLR(working_folder):
         result = pool.starmap(save2tif,pool_input)
         pool.close()
 
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.withdraw()
+
+    working_dir = filedialog.askdirectory()
+    sortLR(working_dir)
+
 """
     t_start = time.time()
     for a_raw_file in all_raw_files:

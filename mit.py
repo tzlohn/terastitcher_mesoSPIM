@@ -389,8 +389,8 @@ class DVFusionTab(QtWidgets.QWidget):
         self.setLayout(self.layout)
 
     def askdirectory(self,SideFileWidget):
-        self.file_location = QtWidgets.QFileDialog.getExistingDirectory(self)
-        SideFileWidget.setText(self.file_location)         
+        self.file_location = QtWidgets.QFileDialog.getOpenFileName(self)
+        SideFileWidget.setText(self.file_location[0])         
 
     def transpose_then_save(self):
         DV_folder = QtWidgets.QFileDialog.getExistingDirectory(self)
@@ -439,7 +439,7 @@ class DVFusionTab(QtWidgets.QWidget):
             edit_meta(meta_file,"dorsal relative to ventral shift in width",x_shift)
             edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
             xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)
-            edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/terastitcher_for_DV.xml")
+            edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/xml_merge.xml")
         else:        
             print("the matching will follow the main channel written in the xml file")
 
@@ -466,7 +466,7 @@ class DVFusionTab(QtWidgets.QWidget):
                 [sn,xml_file] = find_key_from_meta(im_info,key)
                 current_xml = shutil.copy(xml_file,DV_folder) 
             xml_edit_directory(current_xml,DV_folder)
-            run_terastitcher("terastitcher_for_DV.xml","DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size)
+            run_terastitcher(current_xml,"DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size)
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
