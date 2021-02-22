@@ -456,8 +456,8 @@ class DVFusionTab(QtWidgets.QWidget):
         
         if not os.path.isdir("DV_Fusion"):
             os.mkdir("DV_Fusion")
-        os.chdir("ventral_image")
         
+        os.chdir("ventral_image")        
         tifnames = glob.glob("*.tif")
         single_file_size = os.stat(tifnames[0]).st_size
         os.chdir(DV_folder)
