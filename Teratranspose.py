@@ -104,7 +104,7 @@ def removeErrorFiles(file_list,core_no):
         modified_time.append(os.path.getmtime(a_file))
         sorted_modified_file = [file for _,file in sorted(zip(modified_time,file_list))]
 
-    for n in range(len(file_list)-core_no*2, len(file_list)):
+    for n in range(len(file_list)-core_no, len(file_list)):
         os.remove(sorted_modified_file[n])
         print("remove %s"%sorted_modified_file[n])
 
@@ -176,7 +176,6 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
 
         TFF.imwrite(temp_img_name, an_image, bigtiff = True)
         progress_bar(int(new_shape[2]/LoadedPagesNo),"temp*.tif")
-        return True
     else:
         pass
 
@@ -294,10 +293,14 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
     # the following line prevent stuck in multiprocessing, which should work with get_context
     #set_start_method("spawn")
     
-    core_no = multiprocessing.cpu_count()-1
+    total_core_no = multiprocessing.cpu_count() 
+    core_no = int(np.sqrt(total_core_no)*np.floor(np.sqrt(total_core_no)))
     mem = virtual_memory()
     ram_use = mem.free*0.7/core_no
 
+    if ram_use > 9*(1024**3):
+        ram_use = 9*(1024**3)
+ 
     new_shape = tuple(new_shape)
 
     tif = TFF.TiffFile(filename)    
@@ -321,11 +324,12 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
         yz_name = "dorsal*.tif"
     else:
         yz_name = "ventral*.tif"
+    final_list = glob.glob("yz*.tif")
 
     if diff> 0:
         yzlist = glob.glob(yz_name)
 
-        if not yzlist:
+        if not yzlist and not final_list:
             templist = glob.glob("temp*.tif")
             if templist:
                 with TFF.TiffFile(templist[0]) as temptif:
@@ -341,10 +345,11 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                 with get_context("spawn").Pool(processes = core_no) as Pool:
                     result = Pool.starmap(generate_zero_image_for_z,Pool_input)
                     Pool.close()
+                    Pool.join()
     
     yzlist = glob.glob(yz_name)
     # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
-    if not yzlist:
+    if not yzlist and not final_list:
         # get chunks and transpose the axis to z,y,x
         print("\nStep 1: segmented and transpose,\nmight take up to 3 hours for a color in 2X whole-body images")
         templist = glob.glob("temp*.tif")
@@ -359,13 +364,16 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
             with get_context("spawn").Pool(processes = core_no) as Pool:
                 try:
                     result = Pool.starmap(segmented_transpose,Pool_input)
-                    Pool.close()
+                    Pool.close()       
                 except:
                     Pool.close()
+                    Pool.join()
                     print("\nPickling problems causes memory error in multiprocessing")
+                    print(time.asctime())
                     tempfilelist = glob.glob("temp*.tif")
                     removeErrorFiles(tempfilelist,core_no)
             templist = glob.glob("temp*.tif")
+            Pool.join()
        
         """
         #multiprocessing will sometimes skip some items in list, the following code find the lost items and get them.
@@ -382,32 +390,38 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
     ##recombine transposed chuncks and save to 2D images
     # get required parameters, and calculate the resources
     
-    if not yzlist or len(yzlist) < new_shape[0]-1:
-        print("\nStep 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images") 
-        ram_use = mem.free*0.8/core_no    
-        temptifs = glob.glob("temp*.tif")
-        one_temptif_size = os.stat(temptifs[0]).st_size
-        one_x_layer_size = one_temptif_size/new_shape[0]
-        x_layer_no_to_load = int(round(ram_use/len(temptifs)/one_x_layer_size))
-        print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
+    if not final_list:
+        if not yzlist or len(yzlist) < new_shape[0]-1:
+            print("\nStep 2: saving transposed 3D image stack to 2D images slices,\nmight take up to 5 hours for a color in 2x whole-body images") 
+            ram_use = mem.free*0.8/core_no
+            if ram_use > 9*(1024**3):
+                ram_use = 9*(1024**3)    
+            temptifs = glob.glob("temp*.tif")
+            one_temptif_size = os.stat(temptifs[0]).st_size
+            one_x_layer_size = one_temptif_size/new_shape[0]
+            x_layer_no_to_load = int(round(ram_use/len(temptifs)/one_x_layer_size))
+            print("%d layers were loaded at once for recombination"%x_layer_no_to_load)
 
-        # divided the chunck and multiprocessing 
-        Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]
-        while not yzlist or len(yzlist) < new_shape[0]-1:
-            with get_context("spawn").Pool(processes = core_no) as Pool:
-                try:
-                    result = Pool.starmap(image_recombination,Pool_input)
-                    Pool.close()
-                except:
-                    """
-                    sometimes the multiprocessing breaks because of memory issue
-                    this except prvent the crash, and remove problematic files
-                    """
-                    Pool.close()
-                    print("\npickling problem happens and causes memory error")
-                    yzlist = glob.glob(yz_name)
-                    removeErrorFiles(yzlist,core_no)
-            yzlist = glob.glob(yz_name)
+            # divided the chunck and multiprocessing 
+            Pool_input = [(layer,temptifs,x_layer_no_to_load,new_shape[0],isdorsal) for layer in range(0,new_shape[0],x_layer_no_to_load)]
+            while not yzlist or len(yzlist) < new_shape[0]-1:
+                with get_context("spawn").Pool(processes = core_no) as Pool:
+                    try:
+                        result = Pool.starmap(image_recombination,Pool_input)
+                        Pool.close()
+                    except:
+                        """
+                        sometimes the multiprocessing breaks because of memory issue
+                        this except prvent the crash, and remove problematic files
+                        """
+                        Pool.close()
+                        Pool.join()
+                        print("\npickling problem happens and causes memory error")
+                        print(time.asctime())
+                        yzlist = glob.glob(yz_name)
+                        removeErrorFiles(yzlist,core_no)
+                yzlist = glob.glob(yz_name)
+                Pool.join()
 
     t_end = time.time()
     t_duration = t_end-t_start
