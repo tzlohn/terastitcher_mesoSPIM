@@ -33,12 +33,15 @@ def edit_meta(metaFile,key,value):
     meta = open(metaFile,"r")
     all_lines = meta.readlines()
     meta.close()
-    [line_sn,value] = find_key_from_meta(all_lines,key)
-    all_lines[line_sn] = new_line
+    [line_sn,old_value] = find_key_from_meta(all_lines,key)
+    if old_value != "Not assigned" and old_value != "not_a_value":
+        print("%s has been assigned to %s. Please change it in meta editor\n"%(key,old_value))
+    else:
+        all_lines[line_sn] = new_line
 
-    if line_sn < len(all_lines):
-        with open(metaFile,"w") as meta:
-            meta.writelines(all_lines)
+        if line_sn < len(all_lines):
+            with open(metaFile,"w") as meta:
+                meta.writelines(all_lines)
 
 def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
@@ -81,7 +84,9 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
     else:
         string = 'terastitcher --merge --projin=\"'+ xmlname + '\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
         os.system(string)
-    print("Moving the stitched file to an appropriate directory...")
+    
+    if output_folder != "DV_Fusion":
+        print("Moving the stitched file to an appropriate directory...")
 
 def xml_edit_directory(xml_file,dirs):
     with open(xml_file,"r") as xml:
