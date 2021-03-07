@@ -476,7 +476,7 @@ class DVFusionTab(QtWidgets.QWidget):
                 [sn,xml_file] = find_key_from_meta(im_info,key)
                 current_xml = shutil.copy(xml_file,DV_folder) 
             xml_edit_directory(current_xml,DV_folder)
-            run_terastitcher(current_xml,"DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size)
+            run_terastitcher(current_xml,"DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size, is_onlymerge=True)
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
