@@ -5,7 +5,7 @@ from xml_XY_stitching import xml_XY
 from Teratranspose import teratranspose
 import xml_LR_merge
 import xml_DV_fusion
-import sys,os,re,shutil,glob,time
+import sys,os,re,shutil,glob,time,math
 from psutil import virtual_memory
 
 def find_key_from_meta(all_line_string,key):
@@ -129,7 +129,7 @@ def get_text_from_meta(metaFile,key):
         [SN,text] = find_key_from_meta(all_lines,key)    
         return text
 
-def get_file_location_of_terastitched_file(root_folder,new_name):    
+def goTerminalDir(root_folder):
     isDir = True
     folder = root_folder
     while isDir:
@@ -142,11 +142,24 @@ def get_file_location_of_terastitched_file(root_folder,new_name):
                 break
             else:
                 isDir = False
+    return folder    
+
+def get_file_location_of_terastitched_file(root_folder,new_name):    
+    folder = goTerminalDir(root_folder)
     os.chdir(folder)            
     the_file = os.listdir(folder)
     os.rename(the_file[0],new_name)
     shutil.move(new_name,root_folder)
     return os.path.join(root_folder,new_name)
+
+def rename_stitched_2D(root_folder,channel_id):
+    folder = goTerminalDir(root_folder)
+    os.chdir(folder)
+    all_tif = glob.glob("*.tif")
+    for idx,a_tif in enumerate(all_tif):
+        name_id= (len(str(len(all_tif)))-len(str(idx)))*"0"+str(idx)
+        new_name = "C0"+str(channel_id)+"_Z"+name_id+".tif"
+        os.rename(a_tif,new_name)
        
 class LR_MergeBox(QtWidgets.QGroupBox):
     def __init__(self,parent = None):
@@ -296,7 +309,6 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         with open(xml_file,"r") as xml:
             all_lines = xml.readlines()
             xml.close()
-
         
         for ind,a_line in enumerate(all_lines):
             pattern = re.compile(r"(.*IMG_REGEX=)\"(.*)(_\d\d\d_nm.*)\"")
@@ -477,6 +489,9 @@ class DVFusionTab(QtWidgets.QWidget):
                 current_xml = shutil.copy(xml_file,DV_folder) 
             xml_edit_directory(current_xml,DV_folder)
             run_terastitcher(current_xml,"DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size, is_onlymerge=True)
+        
+        channel_ID = self.parent.pars_mainWindow.channel_tabs.currentIndex()
+        rename_stitched_2D(DV_folder,channel_ID)
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
@@ -597,8 +612,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if a_channel_folder == main_channel:
                 self.channel_tabs.setTabText(n,a_channel_folder+" (main)")
             n = n+1                
-                
-        print(self.channel_tabs)
+       
         self.channel_tabs.resize(600,550)
 
 class InitWindow(QtWidgets.QWidget):
