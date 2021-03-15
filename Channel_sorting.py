@@ -54,25 +54,27 @@ def sortChannel(working_folder):
         pattern = re.compile(r'(.*)_(\d+)_nm_(.*)(.raw|.tif)')
         filename_piece = pattern.findall(a_raw_file)
 
-        if not filename_piece[0][1] in channels:
+        if not filename_piece:
+            pass
+        elif not filename_piece[0][1] in channels:
             print(filename_piece[0][1])
             channels.append(filename_piece[0][1])
             channels_folder.append("channel_"+filename_piece[0][1])
             os.mkdir("channel_"+filename_piece[0][1])
 
-        n = 0
-        found_wavelength = ""
-        while len(found_wavelength) is 0: 
-            pattern = re.compile(r'(.*)_(%s)_nm_(.*)(.raw|.tif)'%(channels[n]))
-            filename_piece = pattern.findall(a_raw_file)        
-            if not filename_piece:
-                n = n+1
-                continue
-            else:
-                found_wavelength = filename_piece[0][1] 
+            n = 0
+            found_wavelength = ""
+            while len(found_wavelength) is 0: 
+                pattern = re.compile(r'(.*)_(%s)_nm_(.*)(.raw|.tif)'%(channels[n]))
+                filename_piece = pattern.findall(a_raw_file)        
+                if not filename_piece:
+                    n = n+1
+                    continue
+                else:
+                    found_wavelength = filename_piece[0][1] 
 
-        shutil.move(a_raw_file, working_folder+"/"+channels_folder[n])    
-        shutil.move(its_meta_file, working_folder+"/"+channels_folder[n])
+            shutil.move(a_raw_file, working_folder+"/"+channels_folder[n])    
+            shutil.move(its_meta_file, working_folder+"/"+channels_folder[n])
 
     return channels_folder
 
