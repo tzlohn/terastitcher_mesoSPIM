@@ -9,8 +9,16 @@ from tkinter import filedialog
 from shutil import copyfile
 import multiprocessing as mp
 from multiprocessing import get_context
-import os,re,glob,shutil,time
+import os,re,glob,shutil,time,sys
 from psutil import virtual_memory
+
+def progress_bar(total_length,left):
+    n = total_length-left
+    p = int(n*100/total_length)
+    if p > 100:
+        p = 100
+    sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
+    sys.stdout.flush()
 
 def save2tif(a_raw_file,working_folder):
     # magic number zone #
@@ -18,7 +26,6 @@ def save2tif(a_raw_file,working_folder):
 
     pattern = re.compile(r'(.*)(_left|_right|_Left|_Right).*.raw')
     filename_piece = pattern.findall(a_raw_file)
-    print(a_raw_file)
     if not filename_piece:
         return False
     else:    
@@ -66,8 +73,6 @@ def save2tif(a_raw_file,working_folder):
         elif filename_piece[0][1] == "_Right":    
             shutil.move(new_tif_name, working_folder+"/Right")
             shutil.move(new_meta_name, working_folder+"/Right")
-    return True
-
 
 def sortLR(working_folder):
 
@@ -106,8 +111,22 @@ def sortLR(working_folder):
     core_no = mp.cpu_count()-1 #int(virtual_memory().free/a_file_size)
     pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
     with get_context("spawn").Pool(processes=core_no) as pool:
-        result = pool.starmap(save2tif,pool_input)
-        pool.close()
+        try:
+            result = pool.starmap_async(save2tif,pool_input)
+            """
+            while not result.ready():
+                progress_bar(len(all_raw_files),result._number_left)
+                time.sleep(1)            
+            """
+            pool.close()
+        except:
+            all_tif = glob.glob("*.tif")
+            for a_tif in all_tif:
+                os.remove(a_tif)
+            all_meta_tif = glob.glob("*.tif_meta.txt")
+            for a_meta_tif in all_meta_tif:
+                os.remove(a_meta_tif)
+        pool.join()
 
 if __name__ == "__main__":
     root = tk.Tk()
