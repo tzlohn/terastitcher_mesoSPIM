@@ -120,15 +120,21 @@ def progress_bar(total_length,key):
 def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
     # new_shape is a transposed shape
     # n is the serial number of the first page to be loaded.
+    time.sleep(n/LoadedPagesNo*10)
     with TFF.TiffFile(filename) as tif:
         ori_z_layers = len(tif.pages)
 
     diff = new_shape[2] - ori_z_layers
-
+    
+    """
     if diff > 0 and not isdorsal:        
         str_n = str(n+diff)
     else:
         str_n = str(n)
+    """
+    if diff > 0:
+        str_n = str(n+diff)
+    
     digit_diff = len(str(new_shape[1])) - len(str_n)
     str_n = "0"*digit_diff + str_n
     temp_img_name = "temp_" + str_n + ".tif"
@@ -137,6 +143,8 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
         if n + LoadedPagesNo < ori_z_layers :
             # when this if statement is sufficed, images can be loaded fully without worrying out of index 
             try:
+                #with TFF.TiffFile(filename) as tif:
+                #    an_image = tif.pages[n:n+LoadedPagesNo] 
                 an_image = TFF.imread(filename, key = range(n,n+LoadedPagesNo))
             except:
                 for p in range(LoadedPagesNo):
@@ -176,8 +184,9 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
 
         TFF.imwrite(temp_img_name, an_image, bigtiff = True)
         progress_bar(int(new_shape[2]/LoadedPagesNo),"temp*.tif")
+        return temp_img_name
     else:
-        pass
+        return temp_img_name
 
 def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):      
 
@@ -236,6 +245,7 @@ def image_recombination(n,temptifs_name,x_layer_no,x_size,isdorsal):
                 TFF.imwrite(img_name, img[m-n].transpose(), bigtiff = True)
 
         progress_bar(x_size-1,name_prefix+"*.tif")
+        return True
 
 def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=False):
     
@@ -261,8 +271,9 @@ def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=Fal
         TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
 
         progress_bar(len(Filling_SN),"temp*.tif")
+        return True
     else:
-        pass
+        return False
 
 def findLostFile(stepsize,tifpages,diff,isdorsal):
     tifname = glob.glob("*.tif")
@@ -340,12 +351,13 @@ def trapoSave(filename,new_shape,edge_index,isdorsal=False):
                 if not isdorsal:
                     Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
                 else:
-                    Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
+                    Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(0,diff,LoadedPagesNo)]
+                    #Pool_input = [(layers, new_shape, filename, LoadedPagesNo,isdorsal) for layers in range(len(tif.pages),diff+len(tif.pages),LoadedPagesNo)]
                 print("Creating blank images to fill the differences between ventral and dorsal")
                 with get_context("spawn").Pool(processes = core_no) as Pool:
                     result = Pool.starmap(generate_zero_image_for_z,Pool_input)
                     Pool.close()
-                    Pool.join()
+                Pool.join()
     
     yzlist = glob.glob(yz_name)
     # if images are under combination (can be interogated by finding the existance of any yz*.tif), the transpose step should be skipped 
@@ -458,8 +470,6 @@ def teratranspose(ventral_file,dorsal_file,folderpath, meta_file, is_mainChannel
                     for value in found_values:
                         edge_index_dorsal.append(int(value))                    
       
-    #print(edge_index_ventral)
-    #print(edge_index_dorsal)
 
     print("This step may take 10 hours or longer to run, depends on how big your images are\nIt has two parts:\n1) transpose the images from (x,y,z) to (z,y,x) \n2) save them to 2D images")
     # get the shape of both images
