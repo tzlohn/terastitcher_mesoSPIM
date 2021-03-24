@@ -20,7 +20,7 @@ def progress_bar(total_length,left):
     sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
     sys.stdout.flush()
 
-def save2tif(a_raw_file,working_folder):
+def save2tif(a_raw_file,working_folder,total_file_count):
     # magic number zone #
     background_intensity = 120
 
@@ -68,12 +68,17 @@ def save2tif(a_raw_file,working_folder):
         copyfile(its_meta_file,new_meta_name)
 
         if filename_piece[0][1] == "_Left":
-            shutil.move(new_tif_name, working_folder+"/Left")    
+            #shutil.move(new_tif_name, working_folder+"/Left")
+            os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
             shutil.move(new_meta_name, working_folder+"/Left")
         elif filename_piece[0][1] == "_Right":    
-            shutil.move(new_tif_name, working_folder+"/Right")
+            #shutil.move(new_tif_name, working_folder+"/Right")
+            os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
             shutil.move(new_meta_name, working_folder+"/Right")
-
+        shutil.move(its_meta_file,working_folder+"/Processed")
+        os.rename(a_raw_file,working_folder+"/Processed/"+a_raw_file)
+        progress_bar(total_file_count,len(glob.glob("*.raw")))
+        
 def sortLR(working_folder):
 
     os.chdir(working_folder)
@@ -105,28 +110,30 @@ def sortLR(working_folder):
         os.mkdir("Left")
     if not os.path.exists("Right"):
         os.mkdir("Right")
-
+    if not os.path.exists("Processed"):
+        os.mkdir("Processed")
+    
     all_raw_files = glob.glob("*.raw")
-    #a_file_size = os.stat(all_raw_files[0]).st_size
-    core_no = mp.cpu_count()-1 #int(virtual_memory().free/a_file_size)
-    pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
-    with get_context("spawn").Pool(processes=core_no) as pool:
-        try:
-            result = pool.starmap_async(save2tif,pool_input)
-            """
-            while not result.ready():
-                progress_bar(len(all_raw_files),result._number_left)
-                time.sleep(1)            
-            """
-            pool.close()
-        except:
-            all_tif = glob.glob("*.tif")
-            for a_tif in all_tif:
-                os.remove(a_tif)
-            all_meta_tif = glob.glob("*.tif_meta.txt")
-            for a_meta_tif in all_meta_tif:
-                os.remove(a_meta_tif)
-        pool.join()
+    a_file_size = os.stat(all_raw_files[0]).st_size
+    core_no = int(virtual_memory().free/a_file_size)    
+    total_length = len(all_raw_files)
+    while all_raw_files:
+        pool_input = [(a_raw_file,working_folder,total_length) for a_raw_file in all_raw_files]
+        with get_context("spawn").Pool(processes=core_no) as pool:
+            try:
+                result = pool.starmap(save2tif,pool_input)
+                pool.close()
+            except:
+                pool.close()
+                pool.join()
+                all_tif = glob.glob("*.tif")
+                for a_tif in all_tif:
+                    os.remove(a_tif)
+                all_meta_tif = glob.glob("*.tif_meta.txt")
+                for a_meta_tif in all_meta_tif:
+                    os.remove(a_meta_tif)
+            pool.join()
+        all_raw_files = glob.glob("*.raw")
 
 if __name__ == "__main__":
     root = tk.Tk()
