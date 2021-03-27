@@ -32,7 +32,7 @@ def progress_bar():
     sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
     sys.stdout.flush()
 
-def save2tif(a_raw_file,working_folder,total_file_count):
+def save2tif(a_raw_file,working_folder):
     # magic number zone #
     background_intensity = 120
 
@@ -62,30 +62,31 @@ def save2tif(a_raw_file,working_folder,total_file_count):
     
     dim_size = tuple(dim_size)
 
-    # save to tiff
-    if is_scanned == "False":
-        im = np.ones(shape = dim_size, dtype = "uint16")
-        im = im*background_intensity
-    else:
-        im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
-
     new_name = a_raw_file[0:len(a_raw_file)-4]
     new_tif_name = new_name + ".tif"
-    
-    TFF.imwrite(new_tif_name, data = im, bigtiff = True)
 
-    # save the meta for tiff
-    new_meta_name = new_name+".tif_meta.txt"
-    copyfile(its_meta_file,new_meta_name)
+    if not os.path.exist(working_folder+"/"+illumination_side+"/"+new_tif_name):
+        # save to tiff
+        if is_scanned == "False":
+            im = np.ones(shape = dim_size, dtype = "uint16")
+            im = im*background_intensity
+        else:
+            im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
+        
+        TFF.imwrite(new_tif_name, data = im, bigtiff = True)
 
-    if illumination_side == "Left":
-        #shutil.move(new_tif_name, working_folder+"/Left")
-        os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
-        shutil.move(new_meta_name, working_folder+"/Left")
-    elif illumination_side == "Right":    
-        #shutil.move(new_tif_name, working_folder+"/Right")
-        os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
-        shutil.move(new_meta_name, working_folder+"/Right")
+        # save the meta for tiff
+        new_meta_name = new_name+".tif_meta.txt"
+        copyfile(its_meta_file,new_meta_name)
+
+        if illumination_side == "Left":
+            #shutil.move(new_tif_name, working_folder+"/Left")
+            os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
+            shutil.move(new_meta_name, working_folder+"/Left")
+        elif illumination_side == "Right":    
+            #shutil.move(new_tif_name, working_folder+"/Right")
+            os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
+            shutil.move(new_meta_name, working_folder+"/Right")
             
 def sortLR(working_folder):
     print("Left-Right sorting starts...")
@@ -101,24 +102,23 @@ def sortLR(working_folder):
     all_raw_files = glob.glob("*.raw")
     a_file_size = os.stat(all_raw_files[0]).st_size
     core_no = int(virtual_memory().free/a_file_size)    
-    total_length = len(all_raw_files)
-    while all_raw_files:
-        pool_input = [(a_raw_file,working_folder,total_length) for a_raw_file in all_raw_files]
-        with get_context("spawn").Pool(processes=core_no) as pool:
-            try:
-                result = pool.starmap(save2tif,pool_input)
-                pool.close()
-            except:
-                pool.close()
-                pool.join()
-                all_tif = glob.glob("*.tif")
-                for a_tif in all_tif:
-                    os.remove(a_tif)
-                all_meta_tif = glob.glob("*.tif_meta.txt")
-                for a_meta_tif in all_meta_tif:
-                    os.remove(a_meta_tif)
+
+    pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
+    with get_context("spawn").Pool(processes=core_no) as pool:
+        try:
+            result = pool.starmap(save2tif,pool_input)
+            pool.close()
+        except:
+            pool.close()
             pool.join()
-        all_raw_files = glob.glob("*.raw")
+            all_tif = glob.glob("*.tif")
+            for a_tif in all_tif:
+                os.remove(a_tif)
+            all_meta_tif = glob.glob("*.tif_meta.txt")
+            for a_meta_tif in all_meta_tif:
+                os.remove(a_meta_tif)
+        pool.join()
+
     progress_bar()
 
 if __name__ == "__main__":
