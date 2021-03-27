@@ -595,14 +595,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pars_initWindow = parent
         
         with open(parent.metaFile,"r") as meta:
-            im_info = meta.read()
-            pattern = re.compile(r"[\[]channels[\]] \: [\[]\'(channel_\d+)\',\s\'(channel_\d+)\',\s\'(channel_\d+)\'[\]]")
-            found_folders = pattern.findall(im_info)
-            found_folders = found_folders[0]
-            if len(found_folders) != 1:
-                channel_folders = []
-                for string in found_folders:
-                    channel_folders.append(string)
+            im_info = meta.readlines()
+            pattern = re.compile(r"[\[]channels[\]] \: [\[]\'(channel_.*)\',\s\'(channel_.*)\',\s\'(channel_.*)\'[\]]\n")
+            for line in im_info:
+                found_folders = pattern.findall(line)
+                if found_folders:
+                    found_folders = found_folders[0]
+                    if len(found_folders) != 1:
+                        channel_folders = []
+                    for string in found_folders:
+                        channel_folders.append(string)
+                    break
             
         main_channel = get_text_from_meta(parent.metaFile,"main channel")
 
@@ -628,7 +631,7 @@ class InitWindow(QtWidgets.QWidget):
         self.continueWork.setGeometry(QtCore.QRect(10,70,200,50))
     
     def generateMeta(self):
-
+        # This function creates the window for initial configurations
         self.createWork.setDisabled(True)
         self.continueWork.setDisabled(True)
 
@@ -684,6 +687,7 @@ class InitWindow(QtWidgets.QWidget):
         return channel_folder
         
     def popupMain(self):
+        # This function creates the window for stitching
         metaFileName = QtWidgets.QFileDialog.getOpenFileName(self,"select a meta file (.txt) to open an existed project")
         cwd = os.getcwd()
         self.metaFile = os.path.join(cwd,metaFileName[0])
