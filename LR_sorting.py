@@ -9,11 +9,23 @@ from tkinter import filedialog
 from shutil import copyfile
 import multiprocessing as mp
 from multiprocessing import get_context
-import os,re,glob,shutil,time,sys
+import os,re,glob,shutil,sys
 from psutil import virtual_memory
 
-def progress_bar(total_length,left):
-    n = total_length-left
+def progress_bar():
+    all_raw_file = glob.glob("*.raw")
+    total_length = len(all_raw_file)
+    left_list = os.listdir("Left")
+    right_list = os.listdir("Right")
+    if not left_list:
+        left_len = 0
+    else:
+        left_len = len(left_list)
+    if not right_list:
+        right_len = 0
+    else:
+        right_len = len(right_list)
+    n = int(left_len/2)+int(right_len/2)
     p = int(n*100/total_length)
     if p > 100:
         p = 100
@@ -24,94 +36,67 @@ def save2tif(a_raw_file,working_folder,total_file_count):
     # magic number zone #
     background_intensity = 120
 
-    pattern = re.compile(r'(.*)(_left|_right|_Left|_Right).*.raw')
-    filename_piece = pattern.findall(a_raw_file)
-    if not filename_piece:
-        return False
-    else:    
-        its_meta_file = a_raw_file + "_meta.txt"
-        # get pixel number, pixel size and dimensions for memmap to load the image
-        dim_names = ['z_planes','y_pixels','x_pixels']
-        dim_size = [0, 0, 0]        
-        n = 0
-        with open(its_meta_file) as metaFile:
-            image_info = metaFile.read()
-            for dim_name in dim_names:
-                pattern = re.compile(r"[\[]%s[\]] (\d+)"%dim_name)
-                value = pattern.findall(image_info)
-                dim_size[n] = int(value[0])
-                n=n+1
-        
-            pattern = re.compile(r"[\[]is\sscanned[\]] (\w+)")
-            is_scanned = pattern.findall(image_info)
-            is_scanned = is_scanned[0]    
-        
-        dim_size = tuple(dim_size)
-
-        # save to tiff
-        if is_scanned == "False":
-            im = np.ones(shape = dim_size, dtype = "uint16")
-            im = im*background_intensity
-        else:
-            im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
-        n = 0
-        new_name = ""
-        while n < len(filename_piece[0]):
-            new_name = new_name + filename_piece[0][n]
-            n = n+1
-        new_tif_name = new_name + ".tif"
-        
-        TFF.imwrite(new_tif_name, data = im, bigtiff = True)
-
-        # save the meta for tiff
-        new_meta_name = new_name+".tif_meta.txt"
-        copyfile(its_meta_file,new_meta_name)
-
-        if filename_piece[0][1] == "_Left":
-            #shutil.move(new_tif_name, working_folder+"/Left")
-            os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
-            shutil.move(new_meta_name, working_folder+"/Left")
-        elif filename_piece[0][1] == "_Right":    
-            #shutil.move(new_tif_name, working_folder+"/Right")
-            os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
-            shutil.move(new_meta_name, working_folder+"/Right")
-        shutil.move(its_meta_file,working_folder+"/Processed")
-        os.rename(a_raw_file,working_folder+"/Processed/"+a_raw_file)
-        progress_bar(total_file_count,len(glob.glob("*.raw")))
-        
-def sortLR(working_folder):
-
-    os.chdir(working_folder)
-    all_files = glob.glob("*")
+    progress_bar()   
     
-    # rename all files, remove the serial number in the end
-    for aFile in all_files:
-        pattern = re.compile(r'(.raw_meta.txt|.raw)')
-        exts = pattern.findall(aFile)    
-        if not exts:
-        # if there are files which in not ended by .raw or .raw_meta.txt, such as tif, then the loop
-        # will be continued.
-            continue
-        ext = exts[-1]
-        pattern = re.compile(r'(.*)(_0\d+)%s'%ext)
-        new_name = pattern.findall(aFile)
-        if new_name == []:
-            pattern = re.compile(r'(.*)%s'%ext)
-            new_name = pattern.findall(aFile)      
-            new_name = new_name[0] + ext
-        else:
-            new_name = new_name[0][0] + ext    
+    its_meta_file = a_raw_file + "_meta.txt"
+    # get pixel number, pixel size and dimensions for memmap to load the image
+    dim_names = ['z_planes','y_pixels','x_pixels']
+    dim_size = [0, 0, 0]        
+    n = 0
+    with open(its_meta_file) as metaFile:
+        image_info = metaFile.read()
+        for dim_name in dim_names:
+            pattern = re.compile(r"[\[]%s[\]] (\d+)"%dim_name)
+            value = pattern.findall(image_info)
+            dim_size[n] = int(value[0])
+            n=n+1
+    
+        pattern = re.compile(r"[\[]is\sscanned[\]] (\w+)")
+        is_scanned = pattern.findall(image_info)
+        is_scanned = is_scanned[0]
 
-        if not os.path.exists(new_name):
-            os.rename(aFile,new_name)
+        # identify the shutter/illumination side
+        pattern = re.compile(r"[\[]Shutter[\]] (\w+)\n")
+        illumination_side = pattern.findall(image_info)
+        illumination_side = illumination_side[0]    
+    
+    dim_size = tuple(dim_size)
+
+    # save to tiff
+    if is_scanned == "False":
+        im = np.ones(shape = dim_size, dtype = "uint16")
+        im = im*background_intensity
+    else:
+        im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
+
+    new_name = a_raw_file[0:len(a_raw_file)-4]
+    new_tif_name = new_name + ".tif"
+    
+    TFF.imwrite(new_tif_name, data = im, bigtiff = True)
+
+    # save the meta for tiff
+    new_meta_name = new_name+".tif_meta.txt"
+    copyfile(its_meta_file,new_meta_name)
+
+    if illumination_side == "Left":
+        #shutil.move(new_tif_name, working_folder+"/Left")
+        os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
+        shutil.move(new_meta_name, working_folder+"/Left")
+    elif illumination_side == "Right":    
+        #shutil.move(new_tif_name, working_folder+"/Right")
+        os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
+        shutil.move(new_meta_name, working_folder+"/Right")
+            
+def sortLR(working_folder):
+    print("Left-Right sorting starts...")
+    os.chdir(working_folder)
+    
 # potential bug: if file exists, then this bug will create crashed when finding the name.
 
     if not os.path.exists("Left"):
         os.mkdir("Left")
     if not os.path.exists("Right"):
         os.mkdir("Right")
-    if not os.path.exists("Processed"):
-        os.mkdir("Processed")
     
     all_raw_files = glob.glob("*.raw")
     a_file_size = os.stat(all_raw_files[0]).st_size
@@ -134,6 +119,7 @@ def sortLR(working_folder):
                     os.remove(a_meta_tif)
             pool.join()
         all_raw_files = glob.glob("*.raw")
+    progress_bar()
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -141,63 +127,3 @@ if __name__ == "__main__":
 
     working_dir = filedialog.askdirectory()
     sortLR(working_dir)
-
-"""
-    t_start = time.time()
-    for a_raw_file in all_raw_files:
-        pattern = re.compile(r'(.*)(_left|_right|_Left|_Right).*.raw')
-        filename_piece = pattern.findall(a_raw_file)
-        print(a_raw_file)
-        if not filename_piece:
-            continue
-        else:    
-            its_meta_file = a_raw_file + "_meta.txt"
-            # get pixel number, pixel size and dimensions for memmap to load the image
-            dim_names = ['z_planes','y_pixels','x_pixels']
-            dim_size = [0, 0, 0]        
-            n = 0
-            with open(its_meta_file) as metaFile:
-                image_info = metaFile.read()
-                for dim_name in dim_names:
-                    pattern = re.compile(r"[\[]%s[\]] (\d+)"%dim_name)
-                    value = pattern.findall(image_info)
-                    dim_size[n] = int(value[0])
-                    n=n+1
-            
-                pattern = re.compile(r"[\[]is\sscanned[\]] (\w+)")
-                is_scanned = pattern.findall(image_info)
-                is_scanned = is_scanned[0]    
-            
-            dim_size = tuple(dim_size)
-
-            # save to tiff
-            if is_scanned == "False":
-                im = np.ones(shape = dim_size, dtype = "uint16")
-                im = im*background_intensity
-            else:
-                im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
-            n = 0
-            new_name = ""
-            while n < len(filename_piece[0]):
-                new_name = new_name + filename_piece[0][n]
-                n = n+1
-            new_tif_name = new_name + ".tif"
-            
-            TFF.imwrite(new_tif_name, data = im, bigtiff = True)
-
-            # save the meta for tiff
-            new_meta_name = new_name+".tif_meta.txt"
-            copyfile(its_meta_file,new_meta_name)
-        
-            if filename_piece[0][1] == "_Left":
-                shutil.move(new_tif_name, working_folder+"/Left")    
-                shutil.move(new_meta_name, working_folder+"/Left")
-            elif filename_piece[0][1] == "_Right":    
-                shutil.move(new_tif_name, working_folder+"/Right")
-                shutil.move(new_meta_name, working_folder+"/Right")
-            
-            t_end = time.time()
-
-            estimate_time = ((t_end-t_start)/(all_raw_files.index(a_raw_file)+1))*len(all_raw_files)
-            print("time taken: %.2f, time remaining: %.2f seconds (%.2f/100)"%(t_end-t_start, estimate_time-(t_end-t_start), ((t_end-t_start)/estimate_time)*100))
-            """
