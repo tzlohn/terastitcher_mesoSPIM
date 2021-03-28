@@ -8,8 +8,9 @@ import tkinter as tk
 from tkinter import filedialog
 from shutil import copyfile
 import multiprocessing as mp
+from multiprocessing import Process, Queue, Pipe
 from multiprocessing import get_context
-import os,re,glob,shutil,sys
+import os,re,glob,shutil,sys,time
 from psutil import virtual_memory
 
 def progress_bar():
@@ -32,9 +33,14 @@ def progress_bar():
     sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
     sys.stdout.flush()
 
-def save2tif(a_raw_file,working_folder):
+def save2tif(raw_list,working_folder):
+
     # magic number zone #
     background_intensity = 120
+
+    a_raw_file = raw_list.pop(0)
+    if raw_list:
+        next_process = Process(target = save2tif, args=(raw_list,working_folder))
 
     progress_bar()   
     
@@ -73,27 +79,36 @@ def save2tif(a_raw_file,working_folder):
         else:
             im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
         
-        TFF.imwrite(new_tif_name, data = im, bigtiff = True)
+
+        #TFF.imwrite(new_tif_name, data = im, bigtiff = True)
+        memmap_img = TFF.memmap(new_tif_name, shape = dim_size, dtype = 'uint16')
+        if raw_list:
+            next_process.start()
+        np.copyto(memmap_img,im)
+        memmap_img.flush()
+        del memmap_img
 
         # save the meta for tiff
         new_meta_name = new_name+".tif_meta.txt"
         copyfile(its_meta_file,new_meta_name)
 
         if illumination_side == "Left":
-            #shutil.move(new_tif_name, working_folder+"/Left")
-            os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
+            shutil.move(new_tif_name, working_folder+"/Left")
+            #os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
             shutil.move(new_meta_name, working_folder+"/Left")
         elif illumination_side == "Right":    
-            #shutil.move(new_tif_name, working_folder+"/Right")
-            os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
+            shutil.move(new_tif_name, working_folder+"/Right")
+            #os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
             shutil.move(new_meta_name, working_folder+"/Right")
-            
+        
+        progress_bar()
+        if raw_list:
+            next_process.join()
+
 def sortLR(working_folder):
     print("Left-Right sorting starts...")
     os.chdir(working_folder)
     
-# potential bug: if file exists, then this bug will create crashed when finding the name.
-
     if not os.path.exists("Left"):
         os.mkdir("Left")
     if not os.path.exists("Right"):
@@ -103,6 +118,16 @@ def sortLR(working_folder):
     a_file_size = os.stat(all_raw_files[0]).st_size
     core_no = int(virtual_memory().free/a_file_size)    
 
+    round_no = (len(all_raw_files)//core_no)+1
+    for a_round in range(round_no):
+        if core_no*(a_round+1) < len(all_raw_files):
+            working_raw_list = all_raw_files[core_no*a_round:core_no*(a_round+1)]
+        else:
+            working_raw_list = all_raw_files[core_no*a_round:len(all_raw_files)]
+        save2tif(working_raw_list,working_folder)
+    progress_bar()
+
+    """
     pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
     with get_context("spawn").Pool(processes=core_no) as pool:
         try:
@@ -120,7 +145,7 @@ def sortLR(working_folder):
         pool.join()
 
     progress_bar()
-
+    """
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
