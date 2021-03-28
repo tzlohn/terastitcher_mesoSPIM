@@ -666,18 +666,26 @@ class InitWindow(QtWidgets.QWidget):
         self.prerequisiteWidget.show()
             
     def getParameters(self):
+
         self.side = self.askSideWidget.currentText()
         self.filename = self.askFilename.text()
         self.metaFile = self.prepare_meta(self.filename,self.channel_folder)
         self.metaFile = self.DataFolder+"/"+self.metaFile
         if self.side == "ventral":
             edit_meta(self.metaFile,"ventral raw file",self.DataFolder)
+            OppositeSide = "dorsal"
         elif self.side == "dorsal":
             edit_meta(self.metaFile,"dorsal raw file",self.DataFolder)
+            OppositeSide = "ventral"
         
         edit_meta(self.metaFile,"channels",self.channel_folder)
         self.main_channel = self.selectChannel.currentText()       
         edit_meta(self.metaFile,"main channel",self.main_channel)
+        
+        self.OppositeSideFolder = QtWidgets.QFileDialog.getExistingDirectory(self,"select the directory where %s data were stored"%OppositeSide)
+        sortChannel(self.OppositeSideFolder)
+        edit_meta(self.metaFile,"%s raw file"%OppositeSide,self.DataFolder)
+        
         self.prerequisiteWidget.hide()
         self.mainWindow = MainWindow(self)
         self.mainWindow.show()
