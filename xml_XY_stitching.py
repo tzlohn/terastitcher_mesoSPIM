@@ -47,13 +47,9 @@ def xml_XY(folderpath):
     illumination_side = illumination_side[0][1] 
 
     xml_name = folderpath + "\\" + "terastitcher_for_XY" + ".xml"
-    #meta_name = "meta_for_LR_fusion" + ".txt"
 
     file_list = glob.glob('*tif_meta.txt')
-    """
-    pattern_y = re.compile(r"X-?\d+_Y(-?\d+)")
-    pattern_x = re.compile(r"X(-?\d+)_Y-?\d+")
-    """
+
     pattern_y = re.compile(r"[\[]y_pos[\]] (.*)\n")
     pattern_x = re.compile(r"[\[]x_pos[\]] (.*)\n")
 
@@ -66,10 +62,8 @@ def xml_XY(folderpath):
             im_info = meta.read()
             y_pos = float(pattern_y.findall(im_info)[0])
             x_pos = float(pattern_x.findall(im_info)[0])
-        #y_pos = float(pattern_y.findall(a_file_name)[0])
         if y_pos not in y_pos_all:
             y_pos_all.append(y_pos)
-        #x_pos = float(pattern_x.findall(a_file_name)[0])
         if x_pos not in x_pos_all:
             x_pos_all.append(x_pos)
         xy_pos_all.append([x_pos,y_pos])
@@ -81,11 +75,7 @@ def xml_XY(folderpath):
 
     # Terasticher requires users to put the file in a order of the aligning/stitching direction
     new_file_index = []
-    """
-    for a_file_name in file_list:
-        y_pos = float(pattern_y.findall(a_file_name)[0])
-        x_pos = float(pattern_x.findall(a_file_name)[0])
-    """
+
     for an_xy_pos in xy_pos_all:
         x_pos = an_xy_pos[0]
         y_pos = an_xy_pos[1]
@@ -186,8 +176,6 @@ def xml_XY(folderpath):
     meta_data["pixel counts in y"] = y_pixel_count
     side_position = "x positions " + str.lower(illumination_side)
     meta_data[side_position] = x_pos_all
-    #xml_location = illumination_side + " xml"
-    #meta_data[xml_location] = xml_name
     
     return [meta_data,fusion_folder]
 
