@@ -65,7 +65,7 @@ def save2tif(a_raw_file,working_folder):
     new_name = a_raw_file[0:len(a_raw_file)-4]
     new_tif_name = new_name + ".tif"
 
-    if not os.path.exist(working_folder+"/"+illumination_side+"/"+new_tif_name):
+    if not os.path.exists(working_folder+"/"+illumination_side+"/"+new_tif_name):
         # save to tiff
         if is_scanned == "False":
             im = np.ones(shape = dim_size, dtype = "uint16")
