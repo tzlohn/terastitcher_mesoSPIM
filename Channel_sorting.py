@@ -66,14 +66,15 @@ def sortChannel(working_folder):
         if not os.path.exists(current_channel):
            os.mkdir(current_channel)
         
+        its_meta = a_raw + "_meta.txt"
         """
         new_raw_name = remove_serial_nr(a_raw)
         its_meta = a_raw + "_meta.txt"
         new_meta_name = remove_serial_nr(its_meta)
-
-        os.rename(a_raw, working_folder+"/"+current_channel+"/"+new_raw_name)
-        os.rename(its_meta, working_folder+"/"+current_channel+"/"+new_meta_name)
-        """ 
+        """
+        os.rename(a_raw, working_folder+"/"+current_channel+"/"+a_raw)
+        os.rename(its_meta, working_folder+"/"+current_channel+"/"+its_meta)
+         
 
     return channel_folder
 
