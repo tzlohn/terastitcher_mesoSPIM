@@ -79,26 +79,21 @@ def save2tif(raw_list,working_folder):
         else:
             im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
         
-
-        #TFF.imwrite(new_tif_name, data = im, bigtiff = True)
-        memmap_img = TFF.memmap(new_tif_name, shape = dim_size, dtype = 'uint16')
+        TFF.imwrite(new_tif_name, data = im, bigtiff = True)
         if raw_list:
             next_process.start()
-        np.copyto(memmap_img,im)
-        memmap_img.flush()
-        del memmap_img
 
         # save the meta for tiff
         new_meta_name = new_name+".tif_meta.txt"
         copyfile(its_meta_file,new_meta_name)
 
         if illumination_side == "Left":
-            shutil.move(new_tif_name, working_folder+"/Left")
-            #os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
+            #shutil.move(new_tif_name, working_folder+"/Left")
+            os.rename(new_tif_name, working_folder+"/Left/"+new_tif_name)    
             shutil.move(new_meta_name, working_folder+"/Left")
         elif illumination_side == "Right":    
-            shutil.move(new_tif_name, working_folder+"/Right")
-            #os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
+            #shutil.move(new_tif_name, working_folder+"/Right")
+            os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
             shutil.move(new_meta_name, working_folder+"/Right")
         
         progress_bar()
@@ -125,27 +120,8 @@ def sortLR(working_folder):
         else:
             working_raw_list = all_raw_files[core_no*a_round:len(all_raw_files)]
         save2tif(working_raw_list,working_folder)
-    progress_bar()
+    print("Left-right file sorting is finished.")
 
-    """
-    pool_input = [(a_raw_file,working_folder) for a_raw_file in all_raw_files]
-    with get_context("spawn").Pool(processes=core_no) as pool:
-        try:
-            result = pool.starmap(save2tif,pool_input)
-            pool.close()
-        except:
-            pool.close()
-            pool.join()
-            all_tif = glob.glob("*.tif")
-            for a_tif in all_tif:
-                os.remove(a_tif)
-            all_meta_tif = glob.glob("*.tif_meta.txt")
-            for a_meta_tif in all_meta_tif:
-                os.remove(a_meta_tif)
-        pool.join()
-
-    progress_bar()
-    """
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
