@@ -102,7 +102,7 @@ def remove_comma_from_string(string):
 def find_0_pos(all_positions,image_size_x,side):
     # this function tries to find out the part where the image contains 0
     pos_with_0 = []
-    for ind,pos in enumerate(all_positions):
+    for pos in all_positions:
         if abs(pos) <= 0.5* image_size_x:
             pos_with_0.append(pos)
     # There might be several tile containing zero positions, so only return the extrem.
