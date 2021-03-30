@@ -35,7 +35,19 @@ def edit_meta(metaFile,key,value):
     meta.close()
     [line_sn,old_value] = find_key_from_meta(all_lines,key)
     if old_value != "Not assigned" and old_value != "not_a_value":
-        print("%s has been assigned to %s. Please change it in meta editor\n"%(key,old_value))
+        msg = "\"%s\" has been assigned to %s."%(key,old_value)
+        msgWindow = QtWidgets.QMessageBox()
+        msgWindow.setIcon(QtWidgets.QMessageBox.Question)
+        msgWindow.setWindowTitle("Replace value in meta")
+        msgWindow.setText(msg)
+        msgWindow.setInformativeText("Do you want to update it to the new value?")
+        msgWindow.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        
+        retval = msgWindow.exec_()
+        if retval == 16384: # 16384 is the value for QMessageBox.Yes
+            all_lines[line_sn] = new_line
+            print("\"%s\" is changed to %s"%(key, str(value)))    
+        #print("%s has been assigned to %s. Please change it in meta editor\n"%(key,old_value))
     else:
         all_lines[line_sn] = new_line
 
@@ -188,9 +200,10 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         right_line = self.parent.pars_channelTab.channel + " " + self.parent.DV + " right stitched"
         self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
         self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
-        #self.LR_mergeButton.setDisabled(False)
+
         parameters = xml_LR_merge.matchLR_to_xml\
             (self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV)
+        
         if parameters != False:
             keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y" ]
             for n in range(len(parameters)):
@@ -219,7 +232,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
                 xml_edit_directory(current_xml,self.merge_folder)
             run_terastitcher(current_xml,"merged","TiledXY|3Dseries",single_file_size,is_onlymerge=True)            
         output_location = get_file_location_of_terastitched_file(self.merge_folder+"/merged","LR_merged.tif")
-        print("Moved!!")
+        print("LR merging is done.")
         key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " merged image"
         edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,key,output_location)
 
@@ -301,7 +314,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
-        print("Moved!!")            
+        print("XY stitching is finished")            
 
     def edit_xml(self,xml_file,current_folder):
         os.chdir(current_folder)
@@ -700,16 +713,6 @@ class InitWindow(QtWidgets.QWidget):
         cwd = os.getcwd()
         self.metaFile = os.path.join(cwd,metaFileName[0])
         self.mainWindow = MainWindow(self)    
-        """
-        with open(self.metaFile,"r") as meta:
-            all_lines = meta.readlines()
-        pattern = re.compile(r"[\[](.*)[\]] : (.*)")
-        all_items = pattern.findall(all_lines)
-        
-        metas = dict()
-        for n in len(all_items[0]):
-            metas[all_items[0][n]] = all_items[1][n]
-        """
         self.mainWindow.show()
 
     def prepare_meta(self,filename,channel_folder):
