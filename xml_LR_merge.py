@@ -192,6 +192,11 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
         x_in_left = size_left[1]
         page_num_left = int(round(len(left_tif.pages)))
 
+    total_offset = float(all_left_positions[0])-float(all_left_positions[-1])
+    total_L_portion = (total_offset)/(x_pixels*pixel_size_x)+1
+    total_R_portion = (total_offset)/(x_pixels*pixel_size_x)+1
+    offset_portion = (float(all_left_positions[0])-float(all_left_positions[1]))/(x_pixels*pixel_size_x)
+
     os.chdir(working_folder)
     dest_folder = ["right_rot","left_rot"]
     if not os.path.exists(dest_folder[0]):
@@ -205,16 +210,17 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
     pos_L_idx = all_left_positions.index(pos_L)
     redundant_tile_L = pos_L_idx
     pos_R = find_0_pos(all_right_positions,image_size,"Right")
-    pos_R_idx = all_left_positions.index(pos_R)
+    pos_R_idx = all_right_positions.index(pos_R)
     redundant_tile_R = len(all_right_positions)-pos_R_idx-1
 
     ratio_of_Right = abs(pos_R + 0.5*image_size)/image_size 
     ratio_of_Left = abs(pos_L - 0.5*image_size)/image_size
-    if ratio_of_Right >0.9:
+    
+    if ratio_of_Right >0.9 and pos_L == pos_R:
         # if one side has the ratio larger than 95%, the the other side will be totally discarded.
         overlap_offset_L = 0
         overlap_offset_R = x_pixels
-    elif ratio_of_Left >0.9:
+    elif ratio_of_Left >0.9 and pos_L == pos_R:
         overlap_offset_R = 0
         overlap_offset_L = x_pixels
     else:
@@ -222,11 +228,11 @@ def matchLR_to_xml(metafile,working_folder,left_file,right_file,is_main_channel,
         """
         overlap_offset_L = x_pixels-round((ratio_of_Left+0.1)*x_pixels)
         overlap_offset_R = x_pixels-round((ratio_of_Right+0.1)*x_pixels)
-        """
-        overlap_offset_L = 1-ratio_of_Left+redundant_tile_L
-        overlap_offset_R = 1-ratio_of_Right+redundant_tile_R
-        overlap_offset_L = round((overlap_offset_L)/len(all_left_positions)*x_in_left - 0.1*x_pixels)
-        overlap_offset_R = round((overlap_offset_R)/len(all_right_positions)*x_in_right - 0.1*x_pixels)
+        """        
+        overlap_offset_L = 1-ratio_of_Left+redundant_tile_L*offset_portion
+        overlap_offset_R = 1-ratio_of_Right+redundant_tile_R*offset_portion
+        overlap_offset_L = round((overlap_offset_L)/total_L_portion*x_in_left - 0.1*x_pixels)
+        overlap_offset_R = round((overlap_offset_R)/total_R_portion*x_in_right - 0.1*x_pixels)
     
     print(("overlap_offset_L:%d,overlap_offset_R:%d,")%(overlap_offset_L,overlap_offset_R))
         
