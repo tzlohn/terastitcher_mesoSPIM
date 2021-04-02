@@ -7,6 +7,7 @@ import xml_LR_merge
 import xml_DV_fusion
 import sys,os,re,shutil,glob,time,math
 from psutil import virtual_memory
+from multiprocessing import Process
 
 def find_key_from_meta(all_line_string,key):
     #print(key)
@@ -46,11 +47,16 @@ def edit_meta(metaFile,key,value):
         retval = msgWindow.exec_()
         if retval == 16384: # 16384 is the value for QMessageBox.Yes
             all_lines[line_sn] = new_line
-            print("\"%s\" is changed to %s"%(key, str(value)))    
+            print("\"%s\" is changed from %s to %s"%(key, old_value, str(value)))
+            write = True
+        else:
+            write = False
         #print("%s has been assigned to %s. Please change it in meta editor\n"%(key,old_value))
     else:
         all_lines[line_sn] = new_line
-
+        write = True
+    
+    if write:
         if line_sn < len(all_lines):
             with open(metaFile,"w") as meta:
                 meta.writelines(all_lines)
@@ -178,6 +184,42 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         super().__init__(parent)
         self.parent = parent
         self.merge_folder = self.parent.file_location + "/LR_fusion"
+        self.meta_file = parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile
+        
+        self.Left_stitched_label = QtWidgets.QLabel(self,text = "Stitched left image:")
+        self.Left_stitched_file = QtWidgets.QLineEdit(self)
+        self.browse_left_stitched = QtWidgets.QPushButton(self)
+        self.browse_left_stitched.setText("Browse...")
+        self.browse_left_stitched.clicked.connect(lambda key = "left",key2 = "left": self.askFile(key,key2))
+        
+        key = self.parent.pars_channelTab.channel + " " +parent.DV + " left stitched"
+        file_location = get_text_from_meta(self.meta_file,key)
+        if file_location != "Not assigned":
+            self.Left_stitched_file.setText(file_location)
+        self.Left_stitched_file.setReadOnly(True)
+
+        self.Right_stitched_label = QtWidgets.QLabel(self,text ="Stitched right image:")
+        self.Right_stitched_file = QtWidgets.QLineEdit(self)
+        self.browse_right_stitched = QtWidgets.QPushButton(self)
+        self.browse_right_stitched.setText("Browse...")
+        self.browse_right_stitched.clicked.connect(lambda key = "right", key2 = "right": self.askFile(key,key2))
+        
+        key = self.parent.pars_channelTab.channel + " " +parent.DV + " right stitched"
+        file_location = get_text_from_meta(self.meta_file,key)
+        if file_location != "Not assigned":
+            self.Right_stitched_file.setText(file_location)
+        self.Right_stitched_file.setReadOnly(True)
+
+        self.middle_shift_label = QtWidgets.QLabel(self,text ="Middle position:")
+        self.middle_shift = QtWidgets.QLineEdit(self)
+        
+        key = self.parent.DV + " middle of x"
+        middle_x = get_text_from_meta(self.meta_file,key)
+        if not middle_x == "not_a_value":
+            self.middle_shift.setText(middle_x)
+        else:
+            self.middle_shift.setText("0")
+
         self.LR_matchButton = QtWidgets.QPushButton(self)
         self.LR_matchButton.setText("match their dimension and generate xml")
         self.LR_matchButton.clicked.connect(self.prep_LR_merge)
@@ -187,25 +229,48 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.LR_mergeButton.clicked.connect(self.LR_merge)
         #self.LR_mergeButton.setDisabled(True)
         
-        self.LR_matchButton.setGeometry(85,25,400,25)
-        self.LR_mergeButton.setGeometry(85,60,400,25)
+        self.Left_stitched_label.setGeometry(35,20,150,25)
+        self.browse_left_stitched.setGeometry(455,20,80,25)
+        self.Left_stitched_file.setGeometry(35,50,500,25)
+        self.Right_stitched_label.setGeometry(35,85,150,25)
+        self.browse_right_stitched.setGeometry(455,85,80,25)
+        self.Right_stitched_file.setGeometry(35,115,500,25)
+        self.middle_shift_label.setGeometry(35,150,80,25)
+        self.middle_shift.setGeometry(130,150,80,25)
+        self.LR_matchButton.setGeometry(35,180,500,25)
+        self.LR_mergeButton.setGeometry(35,210,500,25)
         """
         self.layout = QtWidgets.QGridLayout(self)
         self.layout.addWidget(self.LR_matchButton,0,0,0,1)
         self.layout.addWidget(self.LR_mergeButton,1,0,0,1)
         self.setLayout(self.layout)
         """
-    def prep_LR_merge(self):
-        left_line = self.parent.pars_channelTab.channel + " " + self.parent.DV + " left stitched"
-        right_line = self.parent.pars_channelTab.channel + " " + self.parent.DV + " right stitched"
-        self.left_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,left_line)
-        self.right_file = get_text_from_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,right_line)
 
+    def askFile(self,key2,key):
+        self.FileLocation = QtWidgets.QFileDialog.getOpenFileName(self)
+        if key == "right":
+            self.Right_stitched_file.setText(self.FileLocation[0])
+        if key == "left":
+            self.Left_stitched_file.setText(self.FileLocation[0])    
+        meta_file = self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile
+        kw = self.parent.pars_channelTab.channel+ " " + self.parent.DV + " " + key + " "+ "stitched"
+        edit_meta(meta_file,kw,self.FileLocation[0])
+
+    def prep_LR_merge(self):
+        self.left_file = self.Left_stitched_file.text()
+        self.right_file = self.Right_stitched_file.text()
+        """
+        meta_file = self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile
+        merge_proc = Process(target=xml_LR_merge.matchLR_to_xml, args=(meta_file,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV)) 
+        parameters = merge_proc.start()
+        """
+        middle_x = float(self.middle_shift.text())
         parameters = xml_LR_merge.matchLR_to_xml\
-            (self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV)
-        
+            (self.meta_file,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV, pos_zero = middle_x)
+        print("preprocessing for Left-Right merging is finished.")
+        parameters.append(middle_x)
         if parameters != False:
-            keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y" ]
+            keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y", " middle of x" ]
             for n in range(len(parameters)):
                 par_key = self.parent.DV + keys[n]
                 edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,par_key,parameters[n])
@@ -268,6 +333,10 @@ class LR_GroupBox(QtWidgets.QGroupBox):
     def askdirectory(self):
         self.SortedFileLocation = QtWidgets.QFileDialog.getExistingDirectory(self)
         self.unstitchedFileLocation.setText(self.SortedFileLocation)
+  
+        meta_file = self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile
+        kw = self.parent.pars_channelTab.channel+ " " + self.parent.DV + " " + self.side + " "+ "file"
+        edit_meta(meta_file,kw,self.SortedFileLocation)
 
     def XYstitch(self):
         # possible bug: the file location is not end with /Left or /Right
@@ -512,7 +581,7 @@ class DVTab(QtWidgets.QWidget):
         self.pars_channelTab = parent
         self.DV = DV
 
-        self.RawFileLabel = QtWidgets.QLabel("raw file directory")
+        self.RawFileLabel = QtWidgets.QLabel(self,text ="raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
 
         self.current_line = self.DV + " raw file"
@@ -542,13 +611,13 @@ class DVTab(QtWidgets.QWidget):
         self.LRSplitButton.setText("Split Left and Right, and save to tiff")
         self.LRSplitButton.clicked.connect(self.splitLR)
         
-        self.RawFileLabel.setGeometry(QtCore.QRect(10,10,290,20))
+        self.RawFileLabel.setGeometry(10,10,290,20)
         self.reloadUnsortedfilebutton.setGeometry(300,10,110,25)
         self.RawFileLocation.setGeometry(10,45,400,18)
         self.LRSplitButton.setGeometry(10,75,400,25)
         self.LeftBox.setGeometry(10,110,280,150)
         self.RightBox.setGeometry(300,110,280,150)
-        self.LRMergeBox.setGeometry(10,270,570,100)
+        self.LRMergeBox.setGeometry(10,270,570,250)
         """
         self.tabLayout = QtWidgets.QGridLayout()
         self.tabLayout.addWidget(self.RawFileLabel,0,0,1,1)
@@ -596,13 +665,13 @@ class ChannelTab(QtWidgets.QWidget):
             self.DVtabs.addTab(DVTab(parent = self, DV = side),side)
         self.DVtabs.addTab(DVFusionTab(parent = self, channel = channel),"fusion")
 
-        self.DVtabs.resize(600,500)
+        self.DVtabs.resize(600,600)
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self,parent = None):
         super().__init__(parent)
         self.setWindowTitle("Stitching workpanel")
-        self.resize(600,500)
+        self.resize(600,600)
         self.channel_tabs = QtWidgets.QTabWidget(parent=self)
 
         self.pars_initWindow = parent
@@ -629,7 +698,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.channel_tabs.setTabText(n,a_channel_folder+" (main)")
             n = n+1                
        
-        self.channel_tabs.resize(600,550)
+        self.channel_tabs.resize(600,600)
 
 class InitWindow(QtWidgets.QWidget):
     def __init__(self):
@@ -728,8 +797,10 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[pixel counts in y] : \n")
             meta.write("[ventral x positions right] : \n")
             meta.write("[ventral x positions left] : \n")
+            meta.write("[ventral middle of x] : \n")
             meta.write("[dorsal x positions right] : \n")
             meta.write("[dorsal x positions left] : \n")
+            meta.write("[dorsal middle of x] : \n")
             meta.write("[ventral left cutting pixel] : \n")
             meta.write("[ventral right cutting pixel] : \n")
             meta.write("[ventral left overlap] : \n")
