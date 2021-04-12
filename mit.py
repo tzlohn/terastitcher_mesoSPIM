@@ -35,7 +35,7 @@ def edit_meta(metaFile,key,value):
     all_lines = meta.readlines()
     meta.close()
     [line_sn,old_value] = find_key_from_meta(all_lines,key)
-    if old_value != "Not assigned" and old_value != "not_a_value":
+    if old_value != "Not assigned" and old_value != "not_a_value" and old_value != str(value):
         msg = "\"%s\" has been assigned to %s."%(key,old_value)
         msgWindow = QtWidgets.QMessageBox()
         msgWindow.setIcon(QtWidgets.QMessageBox.Question)
