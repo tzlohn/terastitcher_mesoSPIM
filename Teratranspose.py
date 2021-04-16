@@ -134,6 +134,8 @@ def segmented_transpose(n,filename,LoadedPagesNo,edge_index,new_shape,isdorsal):
     """
     if diff > 0:
         str_n = str(n+diff)
+    else:
+        str_n = str(n)
     
     digit_diff = len(str(new_shape[1])) - len(str_n)
     str_n = "0"*digit_diff + str_n
