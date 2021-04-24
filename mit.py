@@ -79,6 +79,8 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
             if(slice_no > 350):
                 slice_no = 350
             string = 'terastitcher --displcompute --projin="xml_import.xml" --sD=0 --subvoldim=%d'%int(slice_no)            
+        elif output_folder == "DV_Fusion":
+            string = 'terastitcher --displcompute --projin="xml_import.xml" --sV=75 --sH=75 --sD=75 --subvoldim=%d'%int(slice_no)
         elif file_size == 0:
             string = 'terastitcher --displcompute --projin="xml_import.xml"'
         else:
@@ -268,8 +270,8 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         parameters = xml_LR_merge.matchLR_to_xml\
             (self.meta_file,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV, pos_zero = middle_x)
         print("preprocessing for Left-Right merging is finished.")
-        parameters.append(middle_x)
         if parameters != False:
+            parameters.append(middle_x)
             keys = [" left cutting pixel"," right cutting pixel"," left overlap"," right overlap"," LR pixel difference in x"," LR pixel difference in y", " middle of x" ]
             for n in range(len(parameters)):
                 par_key = self.parent.DV + keys[n]
@@ -455,20 +457,29 @@ class DVFusionTab(QtWidgets.QWidget):
         self.label_HeightShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in height:")
         self.shift_in_Height = QtWidgets.QLineEdit(self)
 
+        self.label_DepthShift = QtWidgets.QLabel(parent = self,text = "please enter the shift in depth:")
+        self.shift_in_Depth = QtWidgets.QLineEdit(self)
+
         self.generate_DV_xml = QtWidgets.QPushButton(self)
         self.generate_DV_xml.setText("match the dimension of DV images and generate xml")
         self.generate_DV_xml.clicked.connect(self.match_DV_fusion)
 
-        if not self.parent.is_main_channel:
-            meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
-            key = "dorsal relative to ventral shift in width"
-            width = get_text_from_meta(meta_file,key)
-            key = "dorsal relative to ventral shift in height"
-            height = get_text_from_meta(meta_file,key)
-            self.shift_in_Width.setText(width)
-            self.shift_in_Height.setText(height)
+
+        meta_file = self.parent.pars_mainWindow.pars_initWindow.metaFile
+        key = "dorsal relative to ventral shift in width"
+        width = get_text_from_meta(meta_file,key)
+        key = "dorsal relative to ventral shift in height"
+        height = get_text_from_meta(meta_file,key)
+        key = "dorsal relative to ventral shift in depth"
+        depth = get_text_from_meta(meta_file,key)
+        key = "dorsal relative to ventral shift in depth"
+        self.shift_in_Width.setText(width)
+        self.shift_in_Height.setText(height)
+        self.shift_in_Depth.setText(depth)
+        if not self.parent.is_main_channel:    
             self.shift_in_Width.setDisabled(True)
             self.shift_in_Height.setDisabled(True)
+            self.shift_in_Depth.setDisabled(True)
             self.generate_DV_xml.setDisabled(True)
 
         self.fuse_DV = QtWidgets.QPushButton(self)
@@ -488,8 +499,10 @@ class DVFusionTab(QtWidgets.QWidget):
         self.layout.addWidget(self.shift_in_Width,6,2,1,2)
         self.layout.addWidget(self.label_HeightShift,7,0,1,2)
         self.layout.addWidget(self.shift_in_Height,7,2,1,2)
-        self.layout.addWidget(self.generate_DV_xml,8,0,1,4)
-        self.layout.addWidget(self.fuse_DV,9,0,1,4)
+        self.layout.addWidget(self.label_DepthShift,8,0,1,2)
+        self.layout.addWidget(self.shift_in_Depth,8,2,1,2)
+        self.layout.addWidget(self.generate_DV_xml,9,0,1,4)
+        self.layout.addWidget(self.fuse_DV,10,0,1,4)
         self.setLayout(self.layout)
 
     def askdirectory(self,SideFileWidget):
@@ -529,20 +542,41 @@ class DVFusionTab(QtWidgets.QWidget):
         if self.parent.is_main_channel:
             x_shift = get_text_from_meta(meta_file, "dorsal relative to ventral shift in width")
             z_shift = get_text_from_meta(meta_file, "dorsal relative to ventral shift in height")
+            y_shift = get_text_from_meta(meta_file, "dorsal relative to ventral shift in depth")
+            
             if x_shift != "not_a_value":
-                print("x shift has been assigned with value %s"%x_shift)
-                x_shift = int(x_shift)                
+                if x_shift != self.shift_in_Width.text():
+                    print("x shift has been assigned with value %s"%x_shift)
+                    x_shift = int(self.shift_in_Width.text())
+                    edit_meta(meta_file,"dorsal relative to ventral shift in width",x_shift)
+                else:
+                    x_shift = int(x_shift)                
             else:
                 x_shift = self.shift_in_Width.text()
 
             if z_shift != "not_a_value":
-                print("z shift has been assigned with value %s"%z_shift)
-                z_shift = int(z_shift)                
+                if z_shift != self.shift_in_Height.text():
+                    print("z shift has been assigned with value %s"%z_shift)
+                    z_shift = int(self.shift_in_Height.text())
+                    edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
+                else:
+                    z_shift = int(z_shift) 
             else:
-                z_shift = self.shift_in_Height.text()
+                z_shift = int(z_shift)
+
+            if y_shift != "not_a_value":
+                if y_shift != self.shift_in_Depth.text():
+                    print("y shift has been assigned with value %s"%y_shift)
+                    y_shift = int(self.shift_in_Depth.text())
+                else:
+                    y_shift = int(y_shift) 
+            else:
+                y_shift = int(y_shift)
+            
             edit_meta(meta_file,"dorsal relative to ventral shift in width",x_shift)
             edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
-            xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)
+            edit_meta(meta_file,"dorsal relative to ventral shift in depth",y_shift)
+            xml_DV_fusion.generate_xml(x_shift,z_shift,y_shift,DV_folder,meta_file)
             edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/xml_merge.xml")
         else:        
             print("the matching will follow the main channel written in the xml file")
@@ -573,7 +607,7 @@ class DVFusionTab(QtWidgets.QWidget):
             run_terastitcher(current_xml,"DV_Fusion", "TiledXY|2Dseries",file_size = single_file_size, is_onlymerge=True)
         
         channel_ID = self.parent.pars_mainWindow.channel_tabs.currentIndex()
-        rename_stitched_2D(DV_folder,channel_ID)
+        rename_stitched_2D(DV_folder+"/DV_Fusion",channel_ID)
 
 class DVTab(QtWidgets.QWidget):
     def __init__(self,parent = None, DV = None):
@@ -817,6 +851,7 @@ class InitWindow(QtWidgets.QWidget):
             meta.write("[dorsal edge index] : \n")
             meta.write("[dorsal relative to ventral shift in width] : \n")
             meta.write("[dorsal relative to ventral shift in height] : \n")
+            meta.write("[dorsal relative to ventral shift in depth] : \n")
             meta.write("=== progress ===\n")
             meta.write("=== file location ===\n")
             meta.write("[ventral raw file] : Not assigned\n")
@@ -826,13 +861,13 @@ class InitWindow(QtWidgets.QWidget):
                 meta.write("[%s ventral right file] : Not assigned\n"%a_folder)
                 meta.write("[%s ventral left stitched] : Not assigned\n"%a_folder)
                 meta.write("[%s ventral right stitched] : Not assigned\n"%a_folder)
-                meta.write("[%s ventral merged image] : Not assinged\n"%a_folder)
+                meta.write("[%s ventral merged image] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal left file] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal right file] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal left stitched] : Not assigned\n"%a_folder)
                 meta.write("[%s dorsal right stitched] : Not assigned\n"%a_folder)
-                meta.write("[%s dorsal merged image] : Not assinged\n"%a_folder)
-                meta.write("[%s dorsal ventral fusion] : Not assinged\n"%a_folder)
+                meta.write("[%s dorsal merged image] : Not assigned\n"%a_folder)
+                meta.write("[%s dorsal ventral fusion] : Not assigned\n"%a_folder)
             meta.write("=== xml location === \n")
             meta.write("[ventral left XY] : Not assigned\n")
             meta.write("[ventral right XY] : Not assigned\n")
