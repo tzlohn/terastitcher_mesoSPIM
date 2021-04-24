@@ -255,19 +255,25 @@ def generate_zero_image_for_z(n, new_shape, filename, LoadedPagesNo,isdorsal=Fal
     temp_img_name = "temp_" + string_n + ".tif"
     if not os.path.exists(temp_img_name):
         TFFim = TFF.TiffFile(filename)
-        diff = new_shape[2] - len(TFFim.pages) 
+        diff = new_shape[2] - len(TFFim.pages)
+        Filling_SN = range(0,diff,LoadedPagesNo)
+        """ 
         if not isdorsal:
-            Filling_SN = range(0,diff,LoadedPagesNo)
+            Filling_SN = range(0,diff,LoadedPagesNo)    
         else:
             Filling_SN = range(len(TFFim.pages),diff+len(TFFim.pages),LoadedPagesNo)
+        """
         filling_shape_z = (new_shape[0]-1, new_shape[1], LoadedPagesNo)
         filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
 
         if n == Filling_SN[-1]:
+            filling_shape_z = (new_shape[0]-1, new_shape[1], diff-n)
+            """
             if not isdorsal:
                 filling_shape_z = (new_shape[0]-1, new_shape[1], diff-n)
             else:
                 filling_shape_z = (new_shape[0]-1, new_shape[1], new_shape[2]-n)
+            """
             filling_image = np.zeros(filling_shape_z,dtype = 'uint16')
         
         TFF.imwrite(temp_img_name, filling_image, bigtiff = True)
