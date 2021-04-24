@@ -1,4 +1,5 @@
 import re, os, glob, time,sys
+import numpy as np
 #import tkinter as tk
 #from tkinter import filedialog, simpledialog
 import tifffile as TFF
@@ -56,7 +57,7 @@ def cropped_overlap(tifname,shift,im_size,image_size,isdorsal):
                 crop_range = range(0,im_size[1]-shift)
 
         im = TFF.imread(tifname)
-
+        """
         if isdorsal:
             pat_str = "dorsal_"
         else:
@@ -66,13 +67,15 @@ def cropped_overlap(tifname,shift,im_size,image_size,isdorsal):
         SN = pattern.findall(tifname)
         SN = SN[0]
         new_name = "yz_"+SN+".tif"
-
+        
         TFF.imwrite(new_name,im[:,crop_range],append = False, bigtiff = True)
         os.remove(tifname)
+        """
+        TFF.imwrite(tifname,im[:,crop_range],append = False, bigtiff = True)
         #im_size = os.stat(tifname).st_size
         report_progress()
 
-def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6.5, dim_D = 6.5, dim_V = 6):
+def generate_xml(x_shift,z_shift,y_shift,DV_dir, metafile = "", isMain = True, dim_H = 6.5, dim_D = 6.5, dim_V = 6):
    
     os.chdir(DV_dir)
 
@@ -122,37 +125,64 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
         
         os.chdir(DV_dir)
 
-        slice_no = []
-        for folder in foldername:
-            os.chdir(folder)
-            tif_name = glob.glob("*.tif")
-            
-            if len(image_size_list) == 1:
-                with TFF.TiffFile(tif_name[0]) as tif0:
-                    x_size_ori = tif0.pages[0].shape 
-                    
-            slice_no.append(len(tif_name))
-            
-            if folder == "ventral_image":
-                isDorsal = False
-            elif folder == "dorsal_image":
-                isDorsal = True
-
-            if abs(x_shift) > 25:
-                core_no = multiprocessing.cpu_count()-1
-                pool_input = [(tif,x_shift,x_size_ori,image_size_list,isDorsal) for tif in tif_name]
-                print("The %s are being cropped to remove blank parts and pre-aligned in height"%folder)
-                t_start = time.time()
-                with get_context("spawn").Pool(processes = core_no) as Pool: 
-                    result = Pool.starmap(cropped_overlap,pool_input)
-                    Pool.close()
-
-                sys.stdout.write("\r{0}| ({1}/{2})".format(">"*100,len(tif_name),len(tif_name)))
-                t_end = time.time()
-                print("\ntotal duration : %d s"%(t_end-t_start))
-            os.chdir(DV_dir)
+    slice_no = []
+    for folder in foldername:
+        os.chdir(folder)
+        tif_name = glob.glob("*.tif")
         
-    
+        if len(image_size_list) == 1:
+            with TFF.TiffFile(tif_name[0]) as tif0:
+                x_size_ori = tif0.pages[0].shape 
+                
+        if folder == "ventral_image":
+            isDorsal = False
+        elif folder == "dorsal_image":
+            isDorsal = True
+            
+        if abs(x_shift) > 25:
+            core_no = multiprocessing.cpu_count()-1
+            pool_input = [(tif,x_shift,x_size_ori,image_size_list,isDorsal) for tif in tif_name]
+            print("The %s are being cropped to remove blank parts and pre-aligned in height"%folder)
+            t_start = time.time()
+            with get_context("spawn").Pool(processes = core_no) as Pool: 
+                result = Pool.starmap(cropped_overlap,pool_input)
+                Pool.close()
+
+            sys.stdout.write("\r{0}| ({1}/{2})".format(">"*100,len(tif_name),len(tif_name)))
+            t_end = time.time()
+            print("\ntotal duration : %d s"%(t_end-t_start))
+
+        
+        SN_offset = 0
+        if (y_shift < 0 and isDorsal) or (y_shift > 0 and not isDorsal):
+            im = np.zeros(shape = (x_size_ori[0] ,x_size_ori[1]-abs(x_shift)), dtype ="uint16")
+            for n in range(abs(y_shift)):
+                SN = (len(str(len(tif_name)))-len(str(n)))*"0"+str(n)
+                offset_name = "yz_"+ SN +".tif"
+                TFF.imwrite(offset_name,im, append = False, bigtiff = True)
+            SN_offset = abs(y_shift)
+            slice_no.append(len(tif_name)+abs(y_shift))
+        else:
+            slice_no.append(len(tif_name))
+        
+        
+        if isDorsal:
+            pat_str = "dorsal_"
+        else:
+            pat_str = "ventral_"
+
+        pattern = re.compile(r"%s(\d+)"%pat_str)
+        for a_tif in tif_name:                
+            SN = pattern.findall(a_tif)
+            lenSN = len(SN[0])
+            SN = int(SN[0])+SN_offset
+            lenNewSN = len(str(SN))
+            SN = (lenSN-lenNewSN)*"0"+str(SN)
+            new_name = "yz_"+SN+".tif"
+            os.rename(a_tif,new_name)               
+        
+        os.chdir(DV_dir)
+            
     if isMain:
         '''
         reference refering is like transpose. ref1 indicates the V in terastitcher
@@ -217,6 +247,7 @@ def generate_xml(x_shift,z_shift,DV_dir, metafile = "", isMain = True, dim_H = 6
                 xml_file.write(" ABS_H=\"%d\""%(shift_H[n]))
                 xml_file.write(" ABS_V=\"%d\""%(shift_V[n]))
                     
+                #xml_file.write(" ABS_D=\"%.2f\""%(n*y_shift*dim_D))
                 xml_file.write(" ABS_D=\"0\"")
                 xml_file.write(" STITCHABLE=\"yes\"")
                 xml_file.write(" DIR_NAME=\"%s\""%(foldername[n]))
