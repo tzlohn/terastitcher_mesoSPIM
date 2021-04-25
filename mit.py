@@ -96,7 +96,10 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
 
         if not os.path.exists("xml_merging.xml"):
             os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
-            os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
+            if output_folder == "DV_Fusion":
+                os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.5')
+            else:
+                os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
             os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
         
         string = 'terastitcher --merge --projin=\"xml_merging.xml\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
@@ -221,6 +224,8 @@ class LR_MergeBox(QtWidgets.QGroupBox):
             self.middle_shift.setText(middle_x)
         else:
             self.middle_shift.setText("0")
+        if not self.parent.pars_channelTab.is_main_channel:
+            self.middle_shift.setDisabled(True)    
 
         self.LR_matchButton = QtWidgets.QPushButton(self)
         self.LR_matchButton.setText("match their dimension and generate xml")
@@ -381,7 +386,6 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                 xml_edit_directory(current_xml,FileLocation)
                 self.edit_xml(current_xml,FileLocation)
             run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=True)
-            #run_terastitcher(current_xml,"XY_stitched", "TiledXY|3Dseries",is_onlymerge=False)
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
@@ -521,7 +525,8 @@ class DVFusionTab(QtWidgets.QWidget):
             teratranspose(self.VentralFile.text(),self.DorsalFile.text(),DV_folder,meta_file,False)
             x_shift = self.shift_in_Width.text() 
             z_shift = self.shift_in_Height.text()
-            xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),DV_folder,meta_file)  
+            y_shift = self.shift_in_Depth.text()
+            xml_DV_fusion.generate_xml(int(x_shift),int(z_shift),int(y_shift),DV_folder,meta_file)  
     
     def open_folders(self):
         key = self.channel + " dorsal ventral fusion"
@@ -577,7 +582,7 @@ class DVFusionTab(QtWidgets.QWidget):
             edit_meta(meta_file,"dorsal relative to ventral shift in height",z_shift)
             edit_meta(meta_file,"dorsal relative to ventral shift in depth",y_shift)
             xml_DV_fusion.generate_xml(x_shift,z_shift,y_shift,DV_folder,meta_file)
-            edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/xml_merge.xml")
+            edit_meta(meta_file,"dorsal ventral fusion",DV_folder+"/xml_merging.xml")
         else:        
             print("the matching will follow the main channel written in the xml file")
 
@@ -704,7 +709,7 @@ class ChannelTab(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self,parent = None):
         super().__init__(parent)
-        self.setWindowTitle("Stitching workpanel")
+        self.setWindowTitle(parent.metaFile)
         self.resize(600,600)
         self.channel_tabs = QtWidgets.QTabWidget(parent=self)
 
