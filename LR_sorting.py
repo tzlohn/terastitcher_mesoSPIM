@@ -33,14 +33,14 @@ def progress_bar():
     sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
     sys.stdout.flush()
 
-def save2tif(raw_list,working_folder):
+def save2tif(raw_list,working_folder,datatype):
 
     # magic number zone #
     background_intensity = 120
 
     a_raw_file = raw_list.pop(0)
     if raw_list:
-        next_process = Process(target = save2tif, args=(raw_list,working_folder))
+        next_process = Process(target = save2tif, args=(raw_list,working_folder,datatype))
 
     progress_bar()   
     
@@ -68,8 +68,11 @@ def save2tif(raw_list,working_folder):
     
     dim_size = tuple(dim_size)
 
-    new_name = a_raw_file[0:len(a_raw_file)-4]
-    new_tif_name = new_name + ".tif"
+    if datatype == "raw":
+        new_name = a_raw_file[0:len(a_raw_file)-4]
+        new_tif_name = new_name + ".tif"
+    else:
+        new_tif_name = a_raw_file
 
     if not os.path.exists(working_folder+"/"+illumination_side+"/"+new_tif_name):
         # save to tiff
@@ -77,15 +80,21 @@ def save2tif(raw_list,working_folder):
             im = np.ones(shape = dim_size, dtype = "uint16")
             im = im*background_intensity
         else:
-            im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
+            if datatype == "raw":
+                im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
+            else:
+                pass
         
-        TFF.imwrite(new_tif_name, data = im, bigtiff = True)
+        if datatype == "raw":
+            TFF.imwrite(new_tif_name, data = im, bigtiff = True)
+            # save the meta for tiff
+            new_meta_name = new_name+".tif_meta.txt"
+            copyfile(its_meta_file,new_meta_name)
+        else:
+            new_meta_name = its_meta_file
+        
         if raw_list:
             next_process.start()
-
-        # save the meta for tiff
-        new_meta_name = new_name+".tif_meta.txt"
-        copyfile(its_meta_file,new_meta_name)
 
         if illumination_side == "Left":
             #shutil.move(new_tif_name, working_folder+"/Left")
@@ -97,10 +106,15 @@ def save2tif(raw_list,working_folder):
             shutil.move(new_meta_name, working_folder+"/Right")
         
         progress_bar()
-        if raw_list:
-            next_process.join()
 
-def sortLR(working_folder):
+    else:
+        if raw_list:
+            next_process.start()
+    
+    if raw_list:
+        next_process.join()
+
+def sortLR(working_folder, datatype = "raw"):
     print("Left-Right sorting starts...")
     os.chdir(working_folder)
     
@@ -109,7 +123,10 @@ def sortLR(working_folder):
     if not os.path.exists("Right"):
         os.mkdir("Right")
     
-    all_raw_files = glob.glob("*.raw")
+    if datatype == "raw":
+        all_raw_files = glob.glob("*.raw")
+    elif datatype == "tif":
+        all_raw_files = glob.glob("*.raw")    
     a_file_size = os.stat(all_raw_files[0]).st_size
     core_no = int(virtual_memory().free/a_file_size)    
 
@@ -119,7 +136,7 @@ def sortLR(working_folder):
             working_raw_list = all_raw_files[core_no*a_round:core_no*(a_round+1)]
         else:
             working_raw_list = all_raw_files[core_no*a_round:len(all_raw_files)]
-        save2tif(working_raw_list,working_folder)
+        save2tif(working_raw_list,working_folder,datatype)
     print("Left-right file sorting is finished.")
 
 if __name__ == "__main__":
