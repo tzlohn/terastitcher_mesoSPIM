@@ -13,8 +13,8 @@ from multiprocessing import get_context
 import os,re,glob,shutil,sys,time
 from psutil import virtual_memory
 
-def progress_bar():
-    all_raw_file = glob.glob("*.raw")
+def progress_bar(datatype):
+    all_raw_file = glob.glob("*.%s"%"raw")
     total_length = len(all_raw_file)
     left_list = os.listdir("Left")
     right_list = os.listdir("Right")
@@ -41,8 +41,9 @@ def save2tif(raw_list,working_folder,datatype):
     a_raw_file = raw_list.pop(0)
     if raw_list:
         next_process = Process(target = save2tif, args=(raw_list,working_folder,datatype))
-
-    progress_bar()   
+    
+    if datatype == "mesoSPIM raw": 
+        progress_bar(datatype)   
     
     its_meta_file = a_raw_file + "_meta.txt"
     # get pixel number, pixel size and dimensions for memmap to load the image
@@ -68,7 +69,7 @@ def save2tif(raw_list,working_folder,datatype):
     
     dim_size = tuple(dim_size)
 
-    if datatype == "raw":
+    if datatype == "mesoSPIM raw":
         new_name = a_raw_file[0:len(a_raw_file)-4]
         new_tif_name = new_name + ".tif"
     else:
@@ -80,17 +81,19 @@ def save2tif(raw_list,working_folder,datatype):
             im = np.ones(shape = dim_size, dtype = "uint16")
             im = im*background_intensity
         else:
-            if datatype == "raw":
+            if datatype == "mesoSPIM raw":
                 im = np.memmap(a_raw_file, dtype = 'uint16', mode = 'r', shape = dim_size)
             else:
                 pass
         
-        if datatype == "raw":
+        if datatype == "mesoSPIM raw":
             TFF.imwrite(new_tif_name, data = im, bigtiff = True)
             # save the meta for tiff
             new_meta_name = new_name+".tif_meta.txt"
             copyfile(its_meta_file,new_meta_name)
         else:
+            if is_scanned == False:
+                TFF.imwrite(new_tif_name,data = im, bigtiff = True)
             new_meta_name = its_meta_file
         
         if raw_list:
@@ -105,7 +108,8 @@ def save2tif(raw_list,working_folder,datatype):
             os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
             shutil.move(new_meta_name, working_folder+"/Right")
         
-        progress_bar()
+        if datatype == "mesoSPIM raw":
+            progress_bar(datatype)
 
     else:
         if raw_list:
@@ -114,7 +118,7 @@ def save2tif(raw_list,working_folder,datatype):
     if raw_list:
         next_process.join()
 
-def sortLR(working_folder, datatype = "raw"):
+def sortLR(working_folder, datatype = "mesoSPIM raw"):
     print("Left-Right sorting starts...")
     os.chdir(working_folder)
     
@@ -123,10 +127,10 @@ def sortLR(working_folder, datatype = "raw"):
     if not os.path.exists("Right"):
         os.mkdir("Right")
     
-    if datatype == "raw":
+    if datatype == "mesoSPIM raw":
         all_raw_files = glob.glob("*.raw")
     elif datatype == "tif":
-        all_raw_files = glob.glob("*.raw")    
+        all_raw_files = glob.glob("*.tif")    
     a_file_size = os.stat(all_raw_files[0]).st_size
     core_no = int(virtual_memory().free/a_file_size)    
 
