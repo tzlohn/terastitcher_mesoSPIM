@@ -3,6 +3,7 @@ from Channel_sorting import sortChannel
 from LR_sorting import sortLR
 from xml_XY_stitching import xml_XY
 from Teratranspose import teratranspose
+from rename_by_meta import rename_tif_by_meta
 import xml_LR_merge
 import xml_DV_fusion
 import sys,os,re,shutil,glob,time,math
@@ -622,14 +623,22 @@ class DVTab(QtWidgets.QWidget):
 
         self.RawFileLabel = QtWidgets.QLabel(self,text ="raw file directory")
         self.RawFileLocation = QtWidgets.QLineEdit(self)
-
+        
         self.current_line = self.DV + " raw file"
         self.file_location = get_text_from_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line)
         if self.file_location != "Not assigned":
             channel_name = parent.channel
             self.file_location = self.file_location + "/"+channel_name
             self.RawFileLocation.setText(self.file_location)
+
+        self.FileFormatLabel = QtWidgets.QLabel(self,text ="Image format:")
+        self.askFileFormat = QtWidgets.QComboBox(self)
+        self.askFileFormat.addItems(["tif","mesoSPIM raw"])
         
+        self.rename_by_meta = QtWidgets.QPushButton(self)
+        self.rename_by_meta.setText("rename all tif\nby meta file")
+        self.rename_by_meta.clicked.connect(self.rename_tif)
+
         self.LeftBox = LR_GroupBox(self,side = "left")
         self.LeftBox.setTitle("Left")
         #self.LeftBox.setDisabled(True)
@@ -652,7 +661,10 @@ class DVTab(QtWidgets.QWidget):
         
         self.RawFileLabel.setGeometry(10,10,290,20)
         self.reloadUnsortedfilebutton.setGeometry(300,10,110,25)
+        self.FileFormatLabel.setGeometry(430,5,100,20)
         self.RawFileLocation.setGeometry(10,45,400,18)
+        self.askFileFormat.setGeometry(430,30,100,20)
+        self.rename_by_meta.setGeometry(430,60,100,45)
         self.LRSplitButton.setGeometry(10,75,400,25)
         self.LeftBox.setGeometry(10,110,280,150)
         self.RightBox.setGeometry(300,110,280,150)
@@ -673,8 +685,11 @@ class DVTab(QtWidgets.QWidget):
         self.RawFileLocation.setText(self.file_location)
         edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line,self.file_location)        
 
+    def rename_tif(self):
+        rename_tif_by_meta(self.RawFileLocation.text())
+
     def splitLR(self):
-        sortLR(self.file_location)
+        sortLR(self.file_location, datatype = self.askFileFormat.currentText())
         key_left = self.pars_channelTab.channel + " " + self.DV+" left file"
         key_right = self.pars_channelTab.channel + " " + self.DV+" right file"
         self.left_location = self.file_location + "/Left"
