@@ -247,12 +247,6 @@ class LR_MergeBox(QtWidgets.QGroupBox):
         self.middle_shift.setGeometry(130,150,80,25)
         self.LR_matchButton.setGeometry(35,180,500,25)
         self.LR_mergeButton.setGeometry(35,210,500,25)
-        """
-        self.layout = QtWidgets.QGridLayout(self)
-        self.layout.addWidget(self.LR_matchButton,0,0,0,1)
-        self.layout.addWidget(self.LR_mergeButton,1,0,0,1)
-        self.setLayout(self.layout)
-        """
 
     def askFile(self,key2,key):
         self.FileLocation = QtWidgets.QFileDialog.getOpenFileName(self)
@@ -267,11 +261,7 @@ class LR_MergeBox(QtWidgets.QGroupBox):
     def prep_LR_merge(self):
         self.left_file = self.Left_stitched_file.text()
         self.right_file = self.Right_stitched_file.text()
-        """
-        meta_file = self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile
-        merge_proc = Process(target=xml_LR_merge.matchLR_to_xml, args=(meta_file,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV)) 
-        parameters = merge_proc.start()
-        """
+
         middle_x = float(self.middle_shift.text())
         parameters = xml_LR_merge.matchLR_to_xml\
             (self.meta_file,self.merge_folder,self.left_file,self.right_file,self.parent.pars_channelTab.is_main_channel,self.parent.DV, pos_zero = middle_x)
@@ -669,17 +659,7 @@ class DVTab(QtWidgets.QWidget):
         self.LeftBox.setGeometry(10,110,280,150)
         self.RightBox.setGeometry(300,110,280,150)
         self.LRMergeBox.setGeometry(10,270,570,250)
-        """
-        self.tabLayout = QtWidgets.QGridLayout()
-        self.tabLayout.addWidget(self.RawFileLabel,0,0,1,1)
-        self.tabLayout.addWidget(self.reloadUnsortedfilebutton,0,1,1,1)
-        self.tabLayout.addWidget(self.RawFileLocation,1,0,1,4)
-        self.tabLayout.addWidget(self.LRSplitButton,2,0,1,4)
-        self.tabLayout.addWidget(self.LeftBox,3,0,2,2)
-        self.tabLayout.addWidget(self.RightBox,3,2,2,2)
-        self.tabLayout.addWidget(self.LRMergeBox,5,0,2,4)
-        self.setLayout(self.tabLayout)
-        """
+
     def askdirectory(self):
         self.file_location = QtWidgets.QFileDialog.getExistingDirectory(self)
         self.RawFileLocation.setText(self.file_location)
