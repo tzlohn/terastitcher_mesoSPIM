@@ -12,10 +12,16 @@ from multiprocessing import Process, Queue, Pipe
 from multiprocessing import get_context
 import os,re,glob,shutil,sys,time
 from psutil import virtual_memory
+from PyQt5 import QtWidgets
 
 def progress_bar(datatype):
-    all_raw_file = glob.glob("*.%s"%"raw")
-    total_length = len(all_raw_file)
+    if datatype == "mesoSPIM raw":
+        all_raw_file = glob.glob("*.%s"%"raw")
+        total_length = len(all_raw_file)
+    elif datatype == "tif":
+        all_raw_file = glob.glob("*.%s"%"tif")
+        remaining_length = len(all_raw_file)
+   
     left_list = os.listdir("Left")
     right_list = os.listdir("Right")
     if not left_list:
@@ -27,6 +33,8 @@ def progress_bar(datatype):
     else:
         right_len = len(right_list)
     n = int(left_len/2)+int(right_len/2)
+    if datatype == "tif":
+        total_length = remaining_length + n
     p = int(n*100/total_length)
     if p > 100:
         p = 100
@@ -41,10 +49,9 @@ def save2tif(raw_list,working_folder,datatype):
     a_raw_file = raw_list.pop(0)
     if raw_list:
         next_process = Process(target = save2tif, args=(raw_list,working_folder,datatype))
-    
-    if datatype == "mesoSPIM raw": 
-        progress_bar(datatype)   
-    
+     
+    progress_bar(datatype)
+      
     its_meta_file = a_raw_file + "_meta.txt"
     # get pixel number, pixel size and dimensions for memmap to load the image
     dim_names = ['z_planes','y_pixels','x_pixels']
@@ -108,8 +115,7 @@ def save2tif(raw_list,working_folder,datatype):
             os.rename(new_tif_name, working_folder+"/Right/"+new_tif_name)
             shutil.move(new_meta_name, working_folder+"/Right")
         
-        if datatype == "mesoSPIM raw":
-            progress_bar(datatype)
+        progress_bar(datatype)
 
     else:
         if raw_list:
@@ -130,8 +136,15 @@ def sortLR(working_folder, datatype = "mesoSPIM raw"):
     if datatype == "mesoSPIM raw":
         all_raw_files = glob.glob("*.raw")
     elif datatype == "tif":
-        all_raw_files = glob.glob("*.tif")    
-    a_file_size = os.stat(all_raw_files[0]).st_size
+        all_raw_files = glob.glob("*.tif")
+    try:    
+        a_file_size = os.stat(all_raw_files[0]).st_size
+    except:
+        msgWindow = QtWidgets.QMessageBox()
+        msgWindow.setIcon(QtWidgets.QMessageBox.Warning)
+        msgWindow.setWindowTitle("Can't find images with %s format"%datatype)
+        msgWindow.setText("Can't find images with %s format,\n please check whether the image format is correct"%datatype)
+        return 0
     core_no = int(virtual_memory().free/a_file_size)    
 
     round_no = (len(all_raw_files)//core_no)+1
