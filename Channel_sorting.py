@@ -59,6 +59,9 @@ def sortChannel(working_folder):
     #print("warning: if you have different channels used the same wavelength to excite, then this function can't work properly. Please contact Tzu-Lun in this case")
 
     all_raw = glob.glob("*.raw")
+    if len(all_raw) == 0:
+        all_raw = glob.glob("*.tif")
+            
     channel_folder = []
 
     for a_raw in all_raw:
