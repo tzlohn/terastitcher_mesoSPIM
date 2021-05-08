@@ -663,7 +663,7 @@ class DVTab(QtWidgets.QWidget):
     def askdirectory(self):
         self.file_location = QtWidgets.QFileDialog.getExistingDirectory(self)
         self.RawFileLocation.setText(self.file_location)
-        edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line,self.file_location)        
+        #edit_meta(self.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,self.current_line,self.file_location)        
 
     def rename_tif(self):
         rename_tif_by_meta(self.RawFileLocation.text())
