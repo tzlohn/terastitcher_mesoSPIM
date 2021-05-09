@@ -41,15 +41,17 @@ def progress_bar(datatype):
     sys.stdout.write("\r{0}| ({1}/{2})".format(">"*p+"="*(100-p),n,total_length))
     sys.stdout.flush()
 
-def save2tif(a_raw_file,working_folder,datatype):
+def save2tif(raw_list,working_folder,datatype):
 
     # magic number zone #
     background_intensity = 120
     
     """
+    """
     a_raw_file = raw_list.pop(0)
     if raw_list:
         next_process = Process(target = save2tif, args=(raw_list,working_folder,datatype))
+    """
     """
     progress_bar(datatype)
 
@@ -104,8 +106,10 @@ def save2tif(a_raw_file,working_folder,datatype):
                 TFF.imwrite(new_tif_name,data = im, bigtiff = True)
             new_meta_name = its_meta_file
         """
+        """
         if raw_list:
             next_process.start()
+        """
         """
         if illumination_side == "Left":
             #shutil.move(new_tif_name, working_folder+"/Left")
@@ -118,12 +122,14 @@ def save2tif(a_raw_file,working_folder,datatype):
         
         progress_bar(datatype)
     """
+    """
     else:
         if raw_list:
             next_process.start()
     
     if raw_list:
         next_process.join()
+    """
     """
 
 def sortLR(working_folder, datatype = "mesoSPIM raw"):
@@ -152,7 +158,7 @@ def sortLR(working_folder, datatype = "mesoSPIM raw"):
     core_no = int(virtual_memory().free/a_file_size)
     if core_no > mp.cpu_count()-1:
         core_no =  mp.cpu_count()-1   
-    """
+    """ """
     round_no = (len(all_raw_files)//core_no)+1
     for a_round in range(round_no):
         if core_no*(a_round+1) < len(all_raw_files):
@@ -160,12 +166,12 @@ def sortLR(working_folder, datatype = "mesoSPIM raw"):
         else:
             working_raw_list = all_raw_files[core_no*a_round:len(all_raw_files)]
         save2tif(working_raw_list,working_folder,datatype)
-    """
+    """ """
     """
     for a_raw_file in all_raw_files:
         save2tif(a_raw_file,working_folder,datatype)    
     """
-    
+    """
     pool_input = [(a_raw_file,working_folder,datatype) for a_raw_file in all_raw_files]
     with get_context("spawn").Pool(processes=core_no) as pool:
         try:
@@ -182,7 +188,7 @@ def sortLR(working_folder, datatype = "mesoSPIM raw"):
                 for a_meta_tif in all_meta_tif:
                     os.remove(a_meta_tif)
         pool.join()
-    
+    """
     print("Left-right file sorting is finished.")
 
 if __name__ == "__main__":
