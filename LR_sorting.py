@@ -121,8 +121,8 @@ def save2tif(raw_list,working_folder,datatype):
             shutil.move(new_meta_name, working_folder+"/Right")
         
         progress_bar(datatype)
-    """
-    """
+        """
+        """
     else:
         if raw_list:
             next_process.start()
