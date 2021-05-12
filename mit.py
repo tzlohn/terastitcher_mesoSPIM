@@ -30,6 +30,13 @@ def find_key_from_meta(all_line_string,key):
     else:    
         return [n,value]
 
+def show_message(msg):
+    msgWindow = QtWidgets.QMessageBox()
+    msgWindow.setIcon(QtWidgets.QMessageBox.Information)
+    msgWindow.setWindowTitle("message")
+    msgWindow.setText(msg)
+    msgWindow.exec_()
+
 def edit_meta(metaFile,key,value):
     new_line = "["+ key.replace("\\","") + "]" + " : " + str(value) +"\n"
     meta = open(metaFile,"r")
@@ -380,7 +387,8 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
-        print("XY stitching is finished")            
+        show_message("XY stitching is finished")
+        #print("XY stitching is finished")            
 
     def edit_xml(self,xml_file,current_folder):
         os.chdir(current_folder)
@@ -667,6 +675,7 @@ class DVTab(QtWidgets.QWidget):
 
     def rename_tif(self):
         rename_tif_by_meta(self.RawFileLocation.text())
+        show_message("all tifs were renamed.")
 
     def splitLR(self):
         sortLR(self.file_location, datatype = self.askFileFormat.currentText())
