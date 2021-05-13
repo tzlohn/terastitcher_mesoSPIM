@@ -352,7 +352,11 @@ class LR_GroupBox(QtWidgets.QGroupBox):
         if not os.path.isdir("XY_stitched"):
             os.mkdir("XY_stitched")
         if self.parent.pars_channelTab.is_main_channel:
-            [meta_data,self.merge_folder] = xml_XY(FileLocation)
+            try:
+                [meta_data,self.merge_folder] = xml_XY(FileLocation)
+            except:
+                show_message("Some image files or/and meta files are missing...")
+                return False
             os.chdir(FileLocation)
             run_terastitcher("terastitcher_for_XY.xml","XY_stitched", "TiledXY|3Dseries")
             for key in meta_data.keys():
@@ -404,7 +408,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                 continue
             else:
                 name_prefix = name[0][1]
-                pattern = re.compile(r'%s(.*)'%name_prefix)
+                pattern = re.compile(r'%s_(.*)'%name_prefix)
                 name_postfix = "not a value"
                 n = -1
                 while name_postfix == "not a value":
@@ -414,7 +418,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
                         continue
                     else:
                         name_postfix = result[0]
-                        new_name = name[0][0]+"\""+name_prefix+name_postfix+"\">\n"
+                        new_name = name[0][0]+"\""+name_prefix+"_"+name_postfix+"\">\n"
                 all_lines[ind] = new_name
 
         with open(xml_file,"w") as xml:

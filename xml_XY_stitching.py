@@ -75,7 +75,7 @@ def xml_XY(folderpath):
 
     if total_row*total_column != len(file_list):
         print("/***********************/\nSome image files or/and meta files are missing...\n/***********************/")
-        return 0
+        return False
 
     # Terasticher requires users to put the file in a order of the aligning/stitching direction
     new_file_index = []
