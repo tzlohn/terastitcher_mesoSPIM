@@ -69,6 +69,12 @@ def edit_meta(metaFile,key,value):
             with open(metaFile,"w") as meta:
                 meta.writelines(all_lines)
 
+def cmd_terastitcher(string):
+    value = os.system(string)
+    if value == 0:
+        show_message("terastitcher met problems, please check the error message in the console")
+        return False
+
 def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
         if not os.path.exists("xml_import.xml"):
@@ -103,20 +109,20 @@ def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout
             print("subvoldim = %d"%slice_no)     
 
         if not os.path.exists("xml_merging.xml"):
-            os.system('terastitcher --displproj --projin="xml_displcomp.xml"')
+            cmd_terastitcher('terastitcher --displproj --projin="xml_displcomp.xml"')
             if output_folder == "DV_Fusion":
-                os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.5')
+                cmd_terastitcher('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.5')
             else:
-                os.system('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
-            os.system('terastitcher --placetiles --projin="xml_displthres.xml"')
+                cmd_terastitcher('terastitcher --displthres --projin="xml_displproj.xml" --threshold=0.7')
+            cmd_terastitcher('terastitcher --placetiles --projin="xml_displthres.xml"')
         
         string = 'terastitcher --merge --projin=\"xml_merging.xml\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
-        os.system(string)
+        result = cmd_terastitcher(string)
     else:
         string = 'terastitcher --merge --projin=\"'+ xmlname + '\" --volout=\"' + output_folder + '\" --volout_plugin=\"' +volout_plugin + '\" --imout_format=' + imout_format +' --imout_depth=\"16\" --libtiff_uncompress'
-        os.system(string)
+        result = cmd_terastitcher(string)
     
-    if output_folder != "DV_Fusion":
+    if output_folder != "DV_Fusion" and result != False:
         print("Moving the stitched file to an appropriate directory...")
 
 def xml_edit_directory(xml_file,dirs):
@@ -391,8 +397,7 @@ class LR_GroupBox(QtWidgets.QGroupBox):
             meta_key = self.parent.pars_channelTab.channel + " " + self.parent.DV + " " + self.side + " stitched"
             new_file_location = get_file_location_of_terastitched_file(FileLocation+"/XY_stitched","XY_stitched.tif")
             edit_meta(self.parent.pars_channelTab.pars_mainWindow.pars_initWindow.metaFile,meta_key,new_file_location)
-        show_message("XY stitching is finished")
-        #print("XY stitching is finished")            
+        show_message("XY stitching is finished")          
 
     def edit_xml(self,xml_file,current_folder):
         os.chdir(current_folder)
@@ -636,11 +641,11 @@ class DVTab(QtWidgets.QWidget):
         self.FileFormatLabel = QtWidgets.QLabel(self,text ="Image format:")
         self.askFileFormat = QtWidgets.QComboBox(self)
         self.askFileFormat.addItems(["tif","mesoSPIM raw"])
-        
+        """
         self.rename_by_meta = QtWidgets.QPushButton(self)
         self.rename_by_meta.setText("rename all tif\nby meta file")
         self.rename_by_meta.clicked.connect(self.rename_tif)
-
+        """
         self.LeftBox = LR_GroupBox(self,side = "left")
         self.LeftBox.setTitle("Left")
         #self.LeftBox.setDisabled(True)
@@ -666,7 +671,7 @@ class DVTab(QtWidgets.QWidget):
         self.FileFormatLabel.setGeometry(430,5,100,20)
         self.RawFileLocation.setGeometry(10,45,400,18)
         self.askFileFormat.setGeometry(430,30,100,20)
-        self.rename_by_meta.setGeometry(430,60,100,45)
+        #self.rename_by_meta.setGeometry(430,60,100,45)
         self.LRSplitButton.setGeometry(10,75,400,25)
         self.LeftBox.setGeometry(10,110,280,150)
         self.RightBox.setGeometry(300,110,280,150)
@@ -683,6 +688,10 @@ class DVTab(QtWidgets.QWidget):
 
     def splitLR(self):
         sortLR(self.file_location, datatype = self.askFileFormat.currentText())
+        left_location = self.file_location+"/left"
+        rename_tif_by_meta(left_location)
+        right_location = self.file_location+"/right"
+        rename_tif_by_meta(right_location)
         key_left = self.pars_channelTab.channel + " " + self.DV+" left file"
         key_right = self.pars_channelTab.channel + " " + self.DV+" right file"
         self.left_location = self.file_location + "/Left"
