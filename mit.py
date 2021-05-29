@@ -71,9 +71,11 @@ def edit_meta(metaFile,key,value):
 
 def cmd_terastitcher(string):
     value = os.system(string)
+    """
     if value == 0:
         show_message("terastitcher met problems, please check the error message in the console")
         return False
+    """
 
 def run_terastitcher(xmlname ,output_folder, volout_plugin, file_size = 0, imout_format = "tif",is_onlymerge = False):    
     if is_onlymerge == False:
@@ -687,7 +689,11 @@ class DVTab(QtWidgets.QWidget):
         show_message("all tifs were renamed.")
 
     def splitLR(self):
-        sortLR(self.file_location, datatype = self.askFileFormat.currentText())
+        try:
+            sortLR(self.file_location, datatype = self.askFileFormat.currentText())
+        except:
+            show_message("Sorting could not be finished, please check the selected file format...")
+            return 0
         left_location = self.file_location+"/left"
         rename_tif_by_meta(left_location)
         right_location = self.file_location+"/right"
