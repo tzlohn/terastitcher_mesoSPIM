@@ -2,8 +2,21 @@ import tkinter as tk
 from tkinter import filedialog
 import numpy as np
 import tifffile as TFF
-import os,time,shutil,re
+import os,sys,shutil,re
 import multiprocessing
+
+def progress_bar(total_length,dest_folder):
+    file_list = os.listdir(dest_folder)
+    if not file_list:
+        n = 0
+    else:
+        n = len(file_list)
+
+    p = int(n*100/total_length)
+    if p > 100:
+        p = 100
+    sys.stdout.write("\r{0}| {3}:({1}/{2})".format(">"*p+"="*(100-p),n,total_length,dest_folder))
+    sys.stdout.flush()
 
 def get_value(expression,text):
     output = expression.findall(text)
@@ -113,27 +126,34 @@ def find_0_pos(all_positions,image_size_x,side):
 
 def save2_2D(n,imfile,overlap_offset,cutting_pixel,x_diff,y_diff,side,dest_folder):    
     img = TFF.TiffFile(imfile)
-    im = TFF.imread(imfile, key = n)
-
-    if side == "Right":
-        im = im[:,0:cutting_pixel - overlap_offset]
-
-    elif side == "Left":    
-        #im = im[:,cutting_pixel:size_left[1] - overlap_offset]
-        im = im[:,cutting_pixel + overlap_offset :-1]
-
-    an_image = get_dim_match_image(im,x_diff,y_diff,side)
 
     page_num_str = str(len(img.pages))
     n_str = str(n)
     digit_diff = len(page_num_str) - len(n_str)  
     n_str = "0"*digit_diff + n_str
     name = "image_" + n_str + ".tif"
+    
+    if not os.path.exists(dest_folder + "/" + name):
+        im = TFF.imread(imfile, key = n)
 
-    TFF.imwrite(name, an_image, bigtiff = True)
-    shutil.move(name,dest_folder)
+        if side == "Right":
+            im = im[:,0:cutting_pixel - overlap_offset]
 
-    return an_image.shape
+        elif side == "Left":    
+            #im = im[:,cutting_pixel:size_left[1] - overlap_offset]
+            im = im[:,cutting_pixel + overlap_offset :-1]
+
+        an_image = get_dim_match_image(im,x_diff,y_diff,side)
+
+        TFF.imwrite(name, an_image, bigtiff = True)
+        shutil.move(name,dest_folder)
+
+        progress_bar(int(page_num_str),dest_folder)
+        return an_image.shape
+    else:
+        progress_bar(int(page_num_str),dest_folder)
+        return 0
+
 # part 1: modify images according to meta files
 # 1) rotates both images 90 degree
 # 2) remove overlapped pixels to make both dimensions identical
